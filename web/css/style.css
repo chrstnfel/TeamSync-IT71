@@ -1,0 +1,120 @@
+/* TEAMSYNC web client - colours follow the Android app (colors.xml) */
+:root {
+  --primary: #040037;
+  --accent: #2196F3;
+  --card: #B8CFFF;
+  --card-soft: #FFFAF1;
+  --todo: #9E9E9E;
+  --progress: #64B5F6;
+  --done: #81C784;
+  --behind: #FFB74D;
+  --text: #000;
+  --muted: #757575;
+  --line: #E0E0E0;
+  --radius: 16px;
+}
+
+* { box-sizing: border-box; }
+body {
+  margin: 0;
+  font-family: system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+  color: var(--text);
+  background: #fff;
+}
+
+.hidden { display: none !important; }
+
+.topbar {
+  display: flex; align-items: center; gap: 12px;
+  background: var(--primary); color: #fff;
+  padding: 14px 20px; position: sticky; top: 0; z-index: 5;
+}
+.topbar h1 { font-size: 20px; margin: 0; flex: 1; }
+.who { font-size: 14px; opacity: .85; }
+.icon-btn, .link-btn {
+  background: none; border: 0; color: #fff; cursor: pointer; font-size: 15px;
+}
+.icon-btn { font-size: 22px; }
+
+.banner {
+  background: #FFF3CD; border-bottom: 1px solid #F0D98C;
+  padding: 10px 20px; font-size: 14px;
+}
+.banner.error { background: #FDECEA; border-color: #F5C2C0; }
+
+main { max-width: 900px; margin: 0 auto; padding: 20px; }
+
+h2 { font-size: 18px; margin: 24px 0 12px; }
+
+.card {
+  background: var(--card); border-radius: var(--radius);
+  padding: 16px 18px; margin-bottom: 12px;
+}
+.card.soft { background: var(--card-soft); border: 1px solid #F1E6D0; }
+.card.click { cursor: pointer; }
+.card.click:hover { filter: brightness(0.97); }
+.card h3 { margin: 0 0 4px; font-size: 18px; }
+.muted { color: var(--muted); font-size: 13px; }
+
+.row { display: flex; gap: 10px; align-items: center; flex-wrap: wrap; }
+.spread { justify-content: space-between; }
+
+form.panel {
+  border: 1px solid var(--line); border-radius: var(--radius);
+  padding: 16px; margin-bottom: 16px; display: grid; gap: 10px;
+}
+input, select, textarea {
+  font: inherit; padding: 10px 12px; border: 1px solid #BDBDBD;
+  border-radius: 10px; width: 100%; background: #fff;
+}
+textarea { min-height: 70px; resize: vertical; }
+label { font-size: 13px; color: var(--muted); }
+
+button.primary, button.secondary {
+  font: inherit; border-radius: 10px; padding: 10px 16px; cursor: pointer; border: 0;
+}
+button.primary { background: var(--primary); color: #fff; }
+button.secondary { background: #ECECEC; color: var(--text); }
+button:disabled { opacity: .5; cursor: default; }
+
+.auth { max-width: 380px; margin: 40px auto; }
+.tabs { display: flex; gap: 6px; border-bottom: 1px solid var(--line); margin-bottom: 16px; }
+.tab {
+  background: none; border: 0; padding: 10px 14px; cursor: pointer; font: inherit;
+  color: var(--muted); border-bottom: 3px solid transparent;
+}
+.tab.active { color: var(--primary); border-color: var(--primary); font-weight: 600; }
+
+.badge {
+  display: inline-block; color: #fff; font-size: 12px; font-weight: 600;
+  padding: 4px 10px; border-radius: 12px; white-space: nowrap;
+}
+.badge.todo { background: var(--todo); }
+.badge.progress { background: var(--progress); }
+.badge.done { background: var(--done); }
+.badge.role { background: var(--primary); }
+.badge.behind { background: var(--behind); }
+
+.task { display: flex; gap: 12px; align-items: center; }
+.task .info { flex: 1; }
+.task.isdone .name { text-decoration: line-through; }
+.task select { width: auto; }
+
+.summary { font-weight: 600; color: var(--muted); font-size: 14px; margin-bottom: 12px; }
+
+.bar { height: 12px; background: #fff; border-radius: 6px; overflow: hidden; flex: 1; }
+.bar > div { height: 100%; background: var(--accent); }
+.stats { display: grid; grid-template-columns: repeat(3, 1fr); text-align: center; margin-top: 14px; }
+.stats b { display: block; font-size: 26px; }
+
+.chat { border: 1px solid var(--line); border-radius: var(--radius); padding: 12px;
+  height: 55vh; overflow-y: auto; display: flex; flex-direction: column; gap: 8px; }
+.msg { max-width: 75%; padding: 8px 12px; border-radius: 16px; background: #ECECEC;
+  align-self: flex-start; border-bottom-left-radius: 4px; }
+.msg.mine { align-self: flex-end; background: #DCF8C6;
+  border-bottom-left-radius: 16px; border-bottom-right-radius: 4px; }
+.msg .meta { font-size: 11px; color: var(--muted); margin-bottom: 2px; }
+.msg.pending { opacity: .6; }
+.chat-input { display: flex; gap: 8px; margin-top: 10px; }
+
+.empty { color: var(--muted); text-align: center; padding: 30px 0; }
