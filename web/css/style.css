@@ -76,6 +76,8 @@ button.primary, button.secondary {
 button.primary { background: var(--primary); color: #fff; }
 button.secondary { background: #ECECEC; color: var(--text); }
 button:disabled { opacity: .5; cursor: default; }
+a { color: var(--primary); }
+a.secondary { background: #fff; padding: 6px 12px; border-radius: 10px; text-decoration: none; font-size: 14px; }
 
 .auth { max-width: 380px; margin: 40px auto; }
 .tabs { display: flex; gap: 6px; border-bottom: 1px solid var(--line); margin-bottom: 16px; }

@@ -10,6 +10,7 @@ export const C = {
   TASKS: "tasks",
   MESSAGES: "messages",
   COMMENTS: "comments",
+  FILES: "files", // shared as links (Cloud Storage needs the Blaze plan)
 
   // Task status values (FR-06)
   STATUS_TODO: "To Do",
@@ -30,6 +31,7 @@ export const C = {
   ACTION_TASK_STATUS_CHANGED: "task_status_changed",
   ACTION_MESSAGE_SENT: "message_sent",
   ACTION_COMMENT_POSTED: "comment_posted",
+  ACTION_FILE_SHARED: "file_shared",
 
   // Log target types
   TARGET_PROJECT: "project",
@@ -37,6 +39,16 @@ export const C = {
   TARGET_TASK: "task",
   TARGET_MESSAGE: "message",
   TARGET_COMMENT: "comment",
+  TARGET_FILE: "file",
+  FILE_NAME_MAX: 200,
+  FILE_URL_MAX: 2000,
+  // Uploaded files are stored in Firestore chunks (Cloud Storage needs Blaze)
+  KIND_UPLOAD: "upload",
+  KIND_LINK: "link",
+  CHUNKS: "chunks",
+  ACTION_FILE_UPLOADED: "file_uploaded",
+  MAX_UPLOAD_BYTES: 5 * 1024 * 1024,
+  CHUNK_BYTES: 900 * 1024,
 
   MAX_TEXT: 2000,
   REMINDER_DAYS: 3,

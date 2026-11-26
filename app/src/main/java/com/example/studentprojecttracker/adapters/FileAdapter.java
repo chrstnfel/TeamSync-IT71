@@ -24,9 +24,20 @@ import java.util.Locale;
 public class FileAdapter extends RecyclerView.Adapter<FileAdapter.FileViewHolder> {
 
     private List<FileModel> fileList;
+    private OnFileOpenListener openListener;
+
+    /** Uploaded files are opened by the fragment (they must be downloaded first). */
+    public interface OnFileOpenListener {
+        void onOpen(FileModel file);
+    }
 
     public FileAdapter(List<FileModel> fileList) {
         this.fileList = fileList;
+    }
+
+    public FileAdapter(List<FileModel> fileList, OnFileOpenListener openListener) {
+        this.fileList = fileList;
+        this.openListener = openListener;
     }
 
     @NonNull
@@ -45,18 +56,37 @@ public class FileAdapter extends RecyclerView.Adapter<FileAdapter.FileViewHolder
         // Format upload date
         SimpleDateFormat sdf = new SimpleDateFormat("MM/dd/yyyy", Locale.getDefault());
         String dateStr = sdf.format(new Date(file.getUploadedAt()));
-        holder.tvFileInfo.setText("Uploaded on " + dateStr);
+        String who = file.getUploaderName() != null ? file.getUploaderName()
+                : (file.getUploadedBy() != null ? file.getUploadedBy() : "a member");
+        // Section 4.3.4: show writes the server has not confirmed yet
+        String what = file.isUpload()
+                ? "Uploaded by " + who + " · " + formatSize(file.getSizeBytes())
+                : "Link shared by " + who;
+        holder.tvFileInfo.setText(file.isPending()
+                ? "Saving… (waiting for connection)"
+                : what + " · " + dateStr);
 
-        // Open file when clicked
-        holder.itemView.setOnClickListener(v -> openFile(v.getContext(), file.getUrl()));
-
-        // Download button
-        holder.btnDownload.setOnClickListener(v -> openFile(v.getContext(), file.getUrl()));
+        // Uploaded files are downloaded by the fragment; links open in the browser
+        View.OnClickListener open = v -> {
+            if (file.isUpload() && openListener != null) {
+                openListener.onOpen(file);
+            } else {
+                openFile(v.getContext(), file.getUrl());
+            }
+        };
+        holder.itemView.setOnClickListener(open);
+        holder.btnDownload.setOnClickListener(open);
     }
 
     @Override
     public int getItemCount() {
         return fileList.size();
+    }
+
+    private static String formatSize(long bytes) {
+        if (bytes >= 1024 * 1024) return String.format(Locale.US, "%.1f MB", bytes / (1024.0 * 1024));
+        if (bytes >= 1024) return (bytes / 1024) + " KB";
+        return bytes + " B";
     }
 
     private void openFile(Context context, String url) {

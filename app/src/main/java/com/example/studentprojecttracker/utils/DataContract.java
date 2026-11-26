@@ -98,6 +98,39 @@ public final class DataContract {
     public static final String ACTION_COMMENT_POSTED = "comment_posted";
     public static final String TARGET_COMMENT = "comment";
 
+    // ---------- projects/{projectId}/files/{fileId} (M5) ----------
+    // Cloud Storage for Firebase needs the billing-enabled Blaze plan, so files
+    // are either UPLOADED into Firestore (content split into chunks, up to 5 MB)
+    // or SHARED AS A LINK (e.g. Google Drive) for anything bigger.
+    public static final String FILE_KIND = "kind";              // "upload" or "link"
+    public static final String KIND_UPLOAD = "upload";
+    public static final String KIND_LINK = "link";
+    public static final String FILE_MIME = "mimeType";          // upload only
+    public static final String FILE_SIZE = "sizeBytes";         // upload only
+    public static final String FILE_CHUNK_COUNT = "chunkCount"; // upload only
+    public static final String ACTION_FILE_UPLOADED = "file_uploaded";
+
+    // projects/{projectId}/files/{fileId}/chunks/{index}: part of an uploaded file
+    public static final String CHUNKS = "chunks";
+    public static final String CHUNK_INDEX = "index";
+    public static final String CHUNK_DATA = "data";             // Firestore Blob (bytes)
+    /** Maximum upload size: the file, its chunks and its log must fit in one 10 MiB batch. */
+    public static final int MAX_UPLOAD_BYTES = 5 * 1024 * 1024;
+    /** Bytes per chunk; a Firestore document is limited to about 1 MiB. */
+    public static final int CHUNK_BYTES = 900 * 1024;
+
+    public static final String FILE_ID = "fileId";
+    public static final String FILE_PROJECT_ID = "projectId";
+    public static final String FILE_NAME = "fileName";
+    public static final String FILE_URL = "url";                // https link to the file
+    public static final String FILE_UPLOADED_BY = "uploadedBy"; // email of the member who shared it
+    public static final String FILE_UPLOADER_NAME = "uploaderName";
+    public static final String FILE_UPLOADED_AT = "uploadedAt"; // server timestamp
+    public static final String ACTION_FILE_SHARED = "file_shared";
+    public static final String TARGET_FILE = "file";
+    public static final int FILE_NAME_MAX = 200;
+    public static final int FILE_URL_MAX = 2000;
+
     // ---------- M9 Deadline reminders ----------
     /** Unfinished tasks due within this many days (or overdue) are reminded. */
     public static final int REMINDER_DAYS = 3;

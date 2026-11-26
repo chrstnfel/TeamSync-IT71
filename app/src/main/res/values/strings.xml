@@ -47,6 +47,7 @@
     <!-- Files Screen -->
     <string name="files">Files</string>
     <string name="upload">Upload</string>
+    <string name="share_link">Share link</string>
     
     <!-- Team Accountability Screen -->
     <string name="team_accountability">Team Accountability</string>

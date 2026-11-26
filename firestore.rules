@@ -37,6 +37,22 @@ service cloud.firestore {
     function logWrittenWith(projectId) {
       return existsAfter(/databases/$(database)/documents/projects/$(projectId)/activityLogs/$(request.resource.data.lastOpId));
     }
+    // M5: an uploaded file is 1 byte to 5 MB, stored in 1 to 6 chunks of 900 KB.
+    function validUpload(f) {
+      return f.kind == 'upload'
+        && f.sizeBytes is int && f.sizeBytes > 0 && f.sizeBytes <= 5242880
+        && f.chunkCount is int && f.chunkCount >= 1 && f.chunkCount <= 6
+        && f.mimeType is string && f.mimeType.size() <= 200;
+    }
+    // M5: a shared link must be https.
+    function validLink(f) {
+      return f.kind == 'link'
+        && f.url is string && f.url.matches('https://.+') && f.url.size() <= 2000;
+    }
+    function fileAfter(projectId, fileId) {
+      return getAfter(/databases/$(database)/documents/projects/$(projectId)/files/$(fileId)).data;
+    }
+
     // FR-05/FR-06: a task has a title, belongs to this project, is assigned to
     // a student of the project, and has one of the three statuses.
     function validTask(t, projectId) {
@@ -156,19 +172,50 @@ service cloud.firestore {
         allow update, delete: if false;
       }
 
+      // ---------- files (M5 File Sharing, FR-09) ----------
+      // Project Manager and Project Members only (Section 4.7 access table).
+      // Cloud Storage needs the Blaze plan, so a file is either:
+      //  - kind "upload": content stored in files/{fileId}/chunks, 5 MB max, or
+      //  - kind "link":   an https link (e.g. Google Drive) for bigger files.
+      // Shared as yourself, with server time, and logged in the same batch.
+      match /files/{fileId} {
+        allow read: if signedIn() && isStudentOf(projectData(projectId));
+        allow create: if signedIn()
+          && isStudentOf(projectData(projectId))
+          && request.resource.data.fileId == fileId
+          && request.resource.data.projectId == projectId
+          && request.resource.data.uploadedBy == me()
+          && request.resource.data.fileName is string
+          && request.resource.data.fileName.size() > 0
+          && request.resource.data.fileName.size() <= 200
+          && request.resource.data.uploadedAt == request.time
+          && (validUpload(request.resource.data) || validLink(request.resource.data))
+          && logWrittenWith(projectId);
+        allow update, delete: if false;
+
+        // Parts of an uploaded file. Written only in the same batch as the
+        // file record, by the same member; never changed afterwards.
+        match /chunks/{chunkId} {
+          allow read: if signedIn() && isStudentOf(projectData(projectId));
+          allow create: if signedIn()
+            && isStudentOf(projectData(projectId))
+            && fileAfter(projectId, fileId).uploadedBy == me()
+            && fileAfter(projectId, fileId).kind == 'upload'
+            && request.resource.data.index is int
+            && request.resource.data.index >= 0
+            && request.resource.data.index < fileAfter(projectId, fileId).chunkCount
+            && chunkId == string(request.resource.data.index)
+            && request.resource.data.data is bytes
+            && request.resource.data.data.size() <= 921600;
+          allow update, delete: if false;
+        }
+      }
+
       // ---------- notes (extra feature kept from the 3rd-year app) ----------
       match /notes/{noteId} {
         allow read, write: if signedIn() && isStudentOf(projectData(projectId));
       }
     }
 
-    // ---------- LEGACY top-level collection ----------
-    // Used by the current FilesFragment until files move to
-    // projects/{id}/files in increment (c). Remove this block then.
-    match /files/{fileId} {
-      allow read: if signedIn() && inProject(projectData(resource.data.projectId));
-      allow create: if signedIn() && isStudentOf(projectData(request.resource.data.projectId));
-      allow update, delete: if false;
-    }
   }
 }

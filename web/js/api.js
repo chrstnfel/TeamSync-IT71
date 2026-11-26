@@ -9,7 +9,7 @@ import {
 } from "https://www.gstatic.com/firebasejs/13.4.0/firebase-auth.js";
 import {
   getFirestore, collection, doc, getDoc, getDocs, setDoc, writeBatch,
-  onSnapshot, query, where, orderBy, serverTimestamp, Timestamp,
+  onSnapshot, query, where, orderBy, serverTimestamp, Timestamp, Bytes,
 } from "https://www.gstatic.com/firebasejs/13.4.0/firebase-firestore.js";
 import { C, normalizeEmail } from "./data-contract.js";
 
@@ -259,6 +259,86 @@ export async function sendMessage(pid, text) {
   });
   addLog(batch, pid, opId, C.ACTION_MESSAGE_SENT, C.TARGET_MESSAGE, ref.id);
   await batch.commit();
+}
+
+// ---------------- M5 Files (shared as links) ----------------
+
+/** Real-time shared files of one project, newest first. */
+export function watchFiles(pid, cb, onError) {
+  return onSnapshot(
+    query(sub(pid, C.FILES), orderBy("uploadedAt", "desc")),
+    { includeMetadataChanges: true },
+    (s) => cb(s.docs.map((d) => ({
+      id: d.id,
+      ...d.data({ serverTimestamps: "estimate" }),
+      pending: d.metadata.hasPendingWrites,
+    }))),
+    onError);
+}
+
+/** T7 Share a file link (Project Manager or Project Member). */
+export async function shareFile(pid, fileName, url) {
+  const ref = doc(sub(pid, C.FILES));
+  const opId = newOpId();
+  const batch = writeBatch(db);
+  batch.set(ref, {
+    fileId: ref.id,
+    projectId: pid,
+    kind: C.KIND_LINK,
+    fileName,
+    url,
+    uploadedBy: me(),
+    uploaderName: myName(),
+    uploadedAt: serverTimestamp(),
+    lastOpId: opId,
+  });
+  addLog(batch, pid, opId, C.ACTION_FILE_SHARED, C.TARGET_FILE, ref.id);
+  await batch.commit();
+}
+
+/**
+ * T7 Upload a file (5 MB max). Cloud Storage needs the Blaze plan, so the
+ * content is split into 900 KB chunks under files/{fileId}/chunks. The record,
+ * every chunk and the log entry are one atomic batch (NFR-09).
+ */
+export async function uploadFile(pid, file) {
+  if (!file.size || file.size > C.MAX_UPLOAD_BYTES) throw new Error("Files must be 5 MB or less.");
+  const bytes = new Uint8Array(await file.arrayBuffer());
+  const ref = doc(sub(pid, C.FILES));
+  const opId = newOpId();
+  const chunkCount = Math.ceil(bytes.length / C.CHUNK_BYTES);
+  const batch = writeBatch(db);
+  batch.set(ref, {
+    fileId: ref.id,
+    projectId: pid,
+    kind: C.KIND_UPLOAD,
+    fileName: file.name.slice(0, C.FILE_NAME_MAX),
+    mimeType: file.type || "application/octet-stream",
+    sizeBytes: bytes.length,
+    chunkCount,
+    uploadedBy: me(),
+    uploaderName: myName(),
+    uploadedAt: serverTimestamp(),
+    lastOpId: opId,
+  });
+  for (let i = 0; i < chunkCount; i++) {
+    const part = bytes.slice(i * C.CHUNK_BYTES, (i + 1) * C.CHUNK_BYTES);
+    batch.set(doc(db, C.PROJECTS, pid, C.FILES, ref.id, C.CHUNKS, String(i)), {
+      index: i,
+      data: Bytes.fromUint8Array(part),
+    });
+  }
+  addLog(batch, pid, opId, C.ACTION_FILE_UPLOADED, C.TARGET_FILE, ref.id);
+  await batch.commit();
+}
+
+/** Joins an uploaded file's chunks back into a Blob for download. */
+export async function downloadFile(pid, f) {
+  const s = await getDocs(query(collection(db, C.PROJECTS, pid, C.FILES, f.id, C.CHUNKS), orderBy("index")));
+  const parts = s.docs.map((d) => d.data().data.toUint8Array());
+  const total = parts.reduce((n, p) => n + p.length, 0);
+  if (f.sizeBytes && total !== f.sizeBytes) throw new Error("The file is incomplete. Try again when you are online.");
+  return new Blob(parts, { type: f.mimeType || "application/octet-stream" });
 }
 
 // ---------------- M7 Teacher feedback ----------------

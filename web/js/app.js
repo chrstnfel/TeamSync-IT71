@@ -325,13 +325,88 @@ function chatTab({ body, getProject, add }) {
 }
 
 // ----- S7 Files (M5) -----
-function filesTab({ body }) {
+// Files are shared as links because Cloud Storage for Firebase needs the Blaze plan.
+function filesTab({ body, getProject, add }) {
+  const project = getProject();
   body.innerHTML = `
-    <div class="card soft">
-      <h3>File sharing</h3>
-      <p class="muted">File uploads (up to 25 MB) use Cloud Storage for Firebase, which needs the
-      project's Blaze plan. This tab will be connected in increment (c) part 2.</p>
-    </div>`;
+    <form id="fUpload" class="panel">
+      <b>Upload a file</b>
+      <span class="muted">Up to 5 MB. For bigger files, use "Share a link" below.</span>
+      <input name="file" type="file" required>
+      <div><button class="primary">Upload</button></div>
+    </form>
+    <form id="fFile" class="panel">
+      <b>Share a link</b>
+      <span class="muted">Upload the file to Google Drive (or similar), share it with your group or
+        "Anyone with the link", then paste the link here.</span>
+      <input name="name" placeholder="File name (e.g. Chapter 1 draft)" required maxlength="${C.FILE_NAME_MAX}">
+      <input name="url" type="url" placeholder="Share link (https://…)" required maxlength="${C.FILE_URL_MAX}"
+        pattern="https://.+">
+      <div><button class="primary">Share</button></div>
+    </form>
+    <div id="files"><p class="empty">Loading…</p></div>`;
+
+  const fu = body.querySelector("#fUpload");
+  fu.onsubmit = async (e) => {
+    e.preventDefault();
+    const file = fu.elements["file"].files[0];
+    if (!file) return;
+    // Section 4.3.4: a file that is too large is rejected before anything is sent
+    if (file.size > C.MAX_UPLOAD_BYTES) {
+      showBanner("Files can be up to 5 MB. Upload bigger files to Google Drive and share the link.", true);
+      return;
+    }
+    const btn = fu.querySelector("button");
+    btn.disabled = true;
+    btn.textContent = "Uploading…";
+    try { await api.uploadFile(project.id, file); fu.reset(); showBanner(""); }
+    catch (err) { showError(err); }
+    finally { btn.disabled = false; btn.textContent = "Upload"; }
+  };
+
+  const f = body.querySelector("#fFile");
+  f.onsubmit = async (e) => {
+    e.preventDefault();
+    // f.elements[...] because form.name is the form's own name attribute
+    const name = f.elements["name"].value.trim();
+    const url = f.elements["url"].value.trim();
+    if (!name || !url.startsWith("https://")) { showBanner("Enter a file name and an https:// link.", true); return; }
+    try { await api.shareFile(project.id, name, url); f.reset(); } catch (err) { showError(err); }
+  };
+
+  add(api.watchFiles(project.id, (files) => {
+    const box = body.querySelector("#files");
+    const size = (n) => (n >= 1048576 ? (n / 1048576).toFixed(1) + " MB" : Math.max(1, Math.round(n / 1024)) + " KB");
+    box.innerHTML = files.length ? files.map((x) => {
+      const when = x.uploadedAt ? x.uploadedAt.toDate().toLocaleDateString() : "";
+      const who = esc(x.uploaderName || x.uploadedBy);
+      const info = x.pending ? "Saving… (waiting for connection)"
+        : x.kind === C.KIND_UPLOAD ? `Uploaded by ${who} · ${size(x.sizeBytes)} · ${esc(when)}`
+        : `Link shared by ${who} · ${esc(when)}`;
+      // Only https links are stored (enforced by the rules), so they are safe to link to
+      const open = x.kind === C.KIND_UPLOAD
+        ? `<button class="secondary" data-id="${esc(x.id)}">Download</button>`
+        : `<a class="secondary" href="${esc(x.url)}" target="_blank" rel="noopener noreferrer">Open</a>`;
+      return `<div class="card">
+        <div class="row spread"><b>${esc(x.fileName)}</b>${open}</div>
+        <div class="muted">${info}</div>
+      </div>`;
+    }).join("") : `<p class="empty">No files shared yet.</p>`;
+
+    box.querySelectorAll("button[data-id]").forEach((b) => (b.onclick = async () => {
+      const x = files.find((y) => y.id === b.dataset.id);
+      try {
+        b.disabled = true;
+        const blob = await api.downloadFile(project.id, x);
+        const a = document.createElement("a");
+        a.href = URL.createObjectURL(blob);
+        a.download = x.fileName;
+        a.click();
+        setTimeout(() => URL.revokeObjectURL(a.href), 10000);
+      } catch (err) { showError(err); }
+      finally { b.disabled = false; }
+    }));
+  }, showError));
 }
 
 // ----- S8 Progress (M6) + teacher feedback + invites -----

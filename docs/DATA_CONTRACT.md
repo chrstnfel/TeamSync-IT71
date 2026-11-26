@@ -30,7 +30,8 @@ Firebase project: `teamsync-it71` (Firestore location asia-southeast1).
 | `projects/{projectId}/notes/{noteId}` | as in `Note` | Project Manager, Project Member |
 | `projects/{projectId}/tasks/{taskId}` | `taskId`, `projectId`, `title`, `description`, `assignedTo` (email), `dueDate` (timestamp), `status` (`To Do` / `In Progress` / `Done`), `priority` (Low/Medium/High, extra), `createdBy`, `createdAt`, `updatedAt`, `lastOpId` | Project Manager only (read by everyone in the project) |
 | `projects/{projectId}/comments/{commentId}` | `commentId`, `projectId`, `teacherId` (email), `teacherName`, `text` (1-2000 chars), `createdAt` (server time), `lastOpId` | Teacher only (read by everyone in the project; never edited) |
-| `files/{fileId}` *(legacy, moves under the project in increment c part 2)* | `name`, `url`, `uploadedAt`, `projectId` | Project Manager, Project Member |
+| `projects/{projectId}/files/{fileId}` | `fileId`, `projectId`, `kind` (`upload` / `link`), `fileName` (1-200 chars), `uploadedBy` (email), `uploaderName`, `uploadedAt` (server time), `lastOpId`; **upload:** `mimeType`, `sizeBytes` (≤ 5 MB), `chunkCount` (1-6); **link:** `url` (https) | Project Manager, Project Member (sharer only; never edited). Teachers have no access (4.7). |
+| `projects/{projectId}/files/{fileId}/chunks/{index}` | `index` (0-5), `data` (bytes, ≤ 900 KB) | Written only in the same batch as its file record |
 
 ## Atomic record + log (NFR-09)
 
@@ -46,7 +47,8 @@ change can never be saved without its log entry, and vice versa.
 
 `project_created`, `project_updated`, `member_invited`, `teacher_invited`,
 `member_removed`, `leaders_changed`, `task_created`, `task_updated`,
-`task_status_changed`, `task_deleted`, `message_sent`, `comment_posted`.
+`task_status_changed`, `task_deleted`, `message_sent`, `comment_posted`, `file_uploaded`,
+`file_shared` (link).
 Deadline reminders (T9) are not logged, as in Section 4.4.4.
 
 ## Member progress (M6) and teacher overview (M7)
@@ -61,11 +63,26 @@ Not stored. When a student opens the dashboard, the app queries each of their pr
 tasks with `assignedTo == <their email>` and lists those whose `status` is not `Done` and
 whose `dueDate` is overdue or within 3 days. No email, SMS or push (Chapter I limitations).
 
-## Storage paths
+## File sharing (M5) and Cloud Storage
+
+Cloud Storage for Firebase needs the billing-enabled **Blaze** plan, which the group could
+not use (a card and a USD 50 authorization hold are required). Files are therefore handled
+in two ways, both on the free Spark plan:
+
+- **Upload (up to 5 MB):** the file content is split into chunks of up to 900 KB stored in
+  `files/{fileId}/chunks`. The file record, all chunks and the `file_uploaded` log entry are
+  written in **one atomic batch** (Firestore allows 500 writes and 10 MiB per batch, so 5 MB
+  is the safe maximum). Downloading reads the chunks in order and joins them.
+- **Share link (any size):** the member uploads the file to Google Drive (or similar) and
+  TEAMSYNC stores the https link, logged as `file_shared`.
+
+Firestore's free plan stores 1 GiB in total, which is about 200 files of 5 MB.
+
+`storage.rules` is kept, but not deployed, for a future switch to Cloud Storage:
 
 | Path | Rule |
 |---|---|
-| `projects/{projectId}/files/{fileId}/{fileName}` | Students of the project, 25 MB or less (from increment c) |
+| `projects/{projectId}/files/{fileId}/{fileName}` | Students of the project, 25 MB or less |
 | `profile_images/{uid}.jpg` | Only that user, image 5 MB or less |
 | `project_files/{fileName}` *(legacy)* | Signed-in users, 25 MB or less |
 

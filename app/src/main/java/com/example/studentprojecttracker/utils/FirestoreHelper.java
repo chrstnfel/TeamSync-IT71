@@ -578,39 +578,124 @@ public class FirestoreHelper {
         void onError(String error);
     }
 
-    public void saveFileMetadata(String projectId, FileModel file, OnCompleteListener listener) {
-        Map<String, Object> fileData = new HashMap<>();
-        fileData.put("name", file.getName());
-        fileData.put("url", file.getUrl());
-        fileData.put("uploadedAt", file.getUploadedAt());
-        fileData.put("projectId", projectId);
-
-        db.collection(COLLECTION_FILES)
-                .add(fileData)
-                .addOnSuccessListener(documentReference -> {
-                    Log.d(TAG, "File metadata saved successfully");
-                    if (listener != null) {
-                        listener.onComplete(true, "File uploaded successfully");
-                    }
-                })
-                .addOnFailureListener(e -> {
-                    Log.e(TAG, "Error saving file metadata", e);
-                    if (listener != null) {
-                        listener.onComplete(false, e.getMessage());
-                    }
-                });
+    private com.google.firebase.firestore.CollectionReference filesOf(String projectId) {
+        return db.collection(COLLECTION_PROJECTS).document(projectId).collection(DataContract.FILES);
     }
 
+    /**
+     * T7 Share file (M5, FR-09 as revised): the file record (name + https link)
+     * and its activity log entry are written in one atomic batch.
+     */
+    public void shareFileLink(String projectId, String fileName, String url, String uploaderName,
+                              OnCompleteListener listener) {
+        String opId = ActivityLogger.newOpId();
+        com.google.firebase.firestore.DocumentReference ref = filesOf(projectId).document();
+
+        Map<String, Object> data = new HashMap<>();
+        data.put(DataContract.FILE_ID, ref.getId());
+        data.put(DataContract.FILE_PROJECT_ID, projectId);
+        data.put(DataContract.FILE_KIND, DataContract.KIND_LINK);
+        data.put(DataContract.FILE_NAME, fileName);
+        data.put(DataContract.FILE_URL, url);
+        data.put(DataContract.FILE_UPLOADED_BY, ActivityLogger.currentActorEmail());
+        data.put(DataContract.FILE_UPLOADER_NAME, uploaderName);
+        data.put(DataContract.FILE_UPLOADED_AT, com.google.firebase.firestore.FieldValue.serverTimestamp());
+        data.put(DataContract.LAST_OP_ID, opId);
+
+        WriteBatch batch = db.batch();
+        batch.set(ref, data);
+        ActivityLogger.addToBatch(db, batch, projectId, opId,
+                DataContract.ACTION_FILE_SHARED, DataContract.TARGET_FILE, ref.getId());
+
+        commit(batch, "File shared", listener);
+    }
+
+    /**
+     * T7 Upload file (M5, FR-09): Cloud Storage needs the Blaze plan, so the file
+     * content is split into chunks of up to 900 KB stored under
+     * files/{fileId}/chunks. The file record, every chunk and the activity log
+     * entry are written in ONE atomic batch, so a file can never be half-saved
+     * or saved without its log entry (NFR-09). Files are limited to 5 MB so the
+     * whole batch stays under Firestore's 10 MiB request limit.
+     */
+    public void uploadFile(String projectId, String fileName, String mimeType, byte[] bytes,
+                           String uploaderName, OnCompleteListener listener) {
+        if (bytes.length == 0 || bytes.length > DataContract.MAX_UPLOAD_BYTES) {
+            if (listener != null) listener.onComplete(false, "Files must be 5 MB or less.");
+            return;
+        }
+        String opId = ActivityLogger.newOpId();
+        com.google.firebase.firestore.DocumentReference ref = filesOf(projectId).document();
+        int chunkCount = (bytes.length + DataContract.CHUNK_BYTES - 1) / DataContract.CHUNK_BYTES;
+
+        Map<String, Object> data = new HashMap<>();
+        data.put(DataContract.FILE_ID, ref.getId());
+        data.put(DataContract.FILE_PROJECT_ID, projectId);
+        data.put(DataContract.FILE_KIND, DataContract.KIND_UPLOAD);
+        data.put(DataContract.FILE_NAME, fileName);
+        data.put(DataContract.FILE_MIME, mimeType != null ? mimeType : "application/octet-stream");
+        data.put(DataContract.FILE_SIZE, bytes.length);
+        data.put(DataContract.FILE_CHUNK_COUNT, chunkCount);
+        data.put(DataContract.FILE_UPLOADED_BY, ActivityLogger.currentActorEmail());
+        data.put(DataContract.FILE_UPLOADER_NAME, uploaderName);
+        data.put(DataContract.FILE_UPLOADED_AT, com.google.firebase.firestore.FieldValue.serverTimestamp());
+        data.put(DataContract.LAST_OP_ID, opId);
+
+        WriteBatch batch = db.batch();
+        batch.set(ref, data);
+        for (int i = 0; i < chunkCount; i++) {
+            int from = i * DataContract.CHUNK_BYTES;
+            int to = Math.min(bytes.length, from + DataContract.CHUNK_BYTES);
+            Map<String, Object> chunk = new HashMap<>();
+            chunk.put(DataContract.CHUNK_INDEX, i);
+            chunk.put(DataContract.CHUNK_DATA,
+                    com.google.firebase.firestore.Blob.fromBytes(java.util.Arrays.copyOfRange(bytes, from, to)));
+            batch.set(ref.collection(DataContract.CHUNKS).document(String.valueOf(i)), chunk);
+        }
+        ActivityLogger.addToBatch(db, batch, projectId, opId,
+                DataContract.ACTION_FILE_UPLOADED, DataContract.TARGET_FILE, ref.getId());
+
+        commit(batch, "File uploaded", listener);
+    }
+
+    public interface BytesCallback {
+        void onSuccess(byte[] bytes);
+        void onError(String error);
+    }
+
+    /** Reads an uploaded file's chunks in order and joins them back together. */
+    public void downloadFile(String projectId, FileModel file, BytesCallback callback) {
+        filesOf(projectId).document(file.getFileId()).collection(DataContract.CHUNKS)
+                .orderBy(DataContract.CHUNK_INDEX)
+                .get()
+                .addOnSuccessListener(snapshot -> {
+                    java.io.ByteArrayOutputStream out = new java.io.ByteArrayOutputStream();
+                    for (DocumentSnapshot doc : snapshot.getDocuments()) {
+                        com.google.firebase.firestore.Blob part = doc.getBlob(DataContract.CHUNK_DATA);
+                        if (part != null) {
+                            byte[] b = part.toBytes();
+                            out.write(b, 0, b.length);
+                        }
+                    }
+                    byte[] all = out.toByteArray();
+                    if (file.getSizeBytes() > 0 && all.length != file.getSizeBytes()) {
+                        callback.onError("The file is incomplete. Try again when you are online.");
+                    } else {
+                        callback.onSuccess(all);
+                    }
+                })
+                .addOnFailureListener(e -> callback.onError(friendlyError(e)));
+    }
+
+    /** Real-time file list of one project, newest first (FR-09, FR-15). */
     public ListenerRegistration getProjectFiles(String projectId, FileCallback callback) {
-        return db.collection(COLLECTION_FILES)
-                .whereEqualTo("projectId", projectId)
-                // Removed orderBy - will add back after creating index
-                .addSnapshotListener((querySnapshot, error) -> {
+        return filesOf(projectId)
+                .orderBy(DataContract.FILE_UPLOADED_AT, Query.Direction.DESCENDING)
+                .addSnapshotListener(com.google.firebase.firestore.MetadataChanges.INCLUDE,
+                        (querySnapshot, error) -> {
                     if (error != null) {
                         Log.e(TAG, "Error getting files", error);
-                        if (callback != null) {
-                            callback.onError(error.getMessage());
-                        }
+                        if (callback != null) callback.onError(friendlyError(error));
                         return;
                     }
 
@@ -618,14 +703,10 @@ public class FirestoreHelper {
                     if (querySnapshot != null) {
                         for (DocumentSnapshot doc : querySnapshot.getDocuments()) {
                             FileModel file = documentToFile(doc);
-                            if (file != null) {
-                                files.add(file);
-                            }
+                            if (file != null) files.add(file);
                         }
                     }
-                    if (callback != null) {
-                        callback.onSuccess(files);
-                    }
+                    if (callback != null) callback.onSuccess(files);
                 });
     }
 
@@ -925,11 +1006,20 @@ public class FirestoreHelper {
 
     private FileModel documentToFile(DocumentSnapshot doc) {
         try {
-            String name = doc.getString("name");
-            String url = doc.getString("url");
-            Long uploadedAt = doc.getLong("uploadedAt");
-
-            return new FileModel(name, url, uploadedAt != null ? uploadedAt : 0);
+            com.google.firebase.Timestamp at = doc.getTimestamp(DataContract.FILE_UPLOADED_AT,
+                    DocumentSnapshot.ServerTimestampBehavior.ESTIMATE);
+            Long size = doc.getLong(DataContract.FILE_SIZE);
+            return new FileModel(
+                    doc.getId(),
+                    doc.getString(DataContract.FILE_KIND),
+                    doc.getString(DataContract.FILE_NAME),
+                    doc.getString(DataContract.FILE_URL),
+                    doc.getString(DataContract.FILE_MIME),
+                    size != null ? size : 0,
+                    at != null ? at.toDate().getTime() : 0,
+                    doc.getString(DataContract.FILE_UPLOADED_BY),
+                    doc.getString(DataContract.FILE_UPLOADER_NAME),
+                    doc.getMetadata().hasPendingWrites());
         } catch (Exception e) {
             Log.e(TAG, "Error parsing file document", e);
             return null;

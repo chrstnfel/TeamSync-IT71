@@ -39,9 +39,9 @@ Use only these test accounts. Their passwords are kept by the tester and are not
 |---|---|---|
 | IT-01 Cross-platform task status | FR-06, FR-07, FR-10, FR-11, FR-15 | 🟡 |
 | IT-02 Role-based access | FR-01, FR-14, NFR-03 | 🟡 |
-| IT-03 File upload and download | FR-09, FR-12 | ⏸ Blaze plan needed |
+| IT-03 File upload and download across clients | FR-09, FR-12 | ⬜ |
 | IT-04 Task update fails if its log fails | FR-06, FR-12, NFR-09 | ⬜ |
-| IT-05 File metadata failure recovery | FR-09, FR-12, NFR-09 | ⏸ Blaze plan needed |
+| IT-05 File record failure and recovery | FR-09, FR-12, NFR-09 | ⬜ |
 | IT-06 Connection lost during an update | FR-15, NFR-02, NFR-04 | ⬜ |
 | IT-07 Chat message and teacher feedback | FR-08, FR-11, FR-12 | ✅ |
 | IT-08 Deadline reminders | FR-13 | 🟡 |
@@ -108,23 +108,28 @@ In the Playground, tick **Authenticated**, choose provider **password**, and set
 
 ---
 
-## IT-03 File upload and download (FR-09, FR-12) ⏸
+## IT-03 File upload and download across clients (FR-09, FR-12) ⬜
 
-**Blocked:** Cloud Storage for Firebase needs the Blaze plan (Chapter I limitations, Google
-n.d.-b). M5 will be connected in increment (c) part 2.
+**Note:** Cloud Storage for Firebase needs the billing-enabled Blaze plan (Chapter I
+limitations, Google n.d.-b), which the group could not use. Uploaded files (up to **5 MB**)
+are stored in Firestore in chunks; bigger files are shared as links.
 
-**Procedure:** Upload a valid file, then view or download it from the other client. Try a
-file over 25 MB.
+**Procedure (paper, with the 5 MB limit):** Upload a valid file, then view or download it
+from the other client. Try a file over the limit. Share a link.
 
 **Expected:** The correct file and its metadata appear with one log entry; the oversized file
-is rejected before upload.
+is rejected before upload; a link is shared and opens on both clients.
 
 | Step | Done | Actual result | Evidence |
 |---|---|---|---|
-| Upload a small PDF on Android | ⬜ | | |
-| Open it from the web | ⬜ | | |
-| One `file_uploaded` log entry | ⬜ | | |
-| Try a file over 25 MB | ⬜ | | |
+| Android → Files → **Upload** → pick a PDF under 5 MB | ⬜ | | |
+| It appears on the web Files tab without refreshing; **Download** gives the same file | ⬜ | | |
+| Firestore: one `files` doc (`kind: "upload"`, `sizeBytes`, `chunkCount`) + its `chunks` + one `file_uploaded` log with matching `lastOpId` | ⬜ | | |
+| Web → Upload a file; open it on Android | ⬜ | | |
+| Pick a file **over 5 MB** | ⬜ | Expected: "File is too large", nothing saved | |
+| Android → **Share link** with a Google Drive link; it opens from the web | ⬜ | `kind: "link"`, `file_shared` log | |
+| Try a link without https, or an empty name | ⬜ | Expected: error, nothing saved | |
+| Teacher account cannot see the Files list (Section 4.7) | ⬜ | | |
 
 ---
 
@@ -158,15 +163,22 @@ update batch.
 
 ---
 
-## IT-05 File metadata failure recovery (FR-09, FR-12, NFR-09) ⏸
+## IT-05 File record failure and recovery (FR-09, FR-12, NFR-09) ⬜
 
-**Blocked:** needs Cloud Storage (Blaze plan), like IT-03.
+**Note:** because the file content is stored in Firestore, the file record, its chunks and
+its log entry are **one atomic batch**. The paper's case "file uploaded but metadata failed"
+therefore cannot happen: either everything is saved or nothing is. The test checks this.
 
-**Procedure:** Allow the Storage upload but reject the Firestore metadata/log batch. Restore
-permission and retry; also test abandoning the upload.
+**Expected:** No file entry or chunk is published before the commit; a retry creates one
+record and one log entry; an offline upload shows as pending and is confirmed once after
+reconnecting.
 
-**Expected:** No file entry is published before the commit; a retry creates one record and
-one log entry; an abandoned upload is cleaned up or flagged.
+| Step | Done | Actual result | Evidence |
+|---|---|---|---|
+| Temporarily set `activityLogs` create to `if false` (as in IT-04), deploy, upload a file | ⬜ | Expected: "Not uploaded" error; no `files` document and no chunks | |
+| Restore the rules (`git checkout firestore.rules`), deploy, upload again | ⬜ | Expected: one file + its chunks + one `file_uploaded` log | |
+| Phone in Airplane mode → upload a small file | ⬜ | Expected: "Saving… (waiting for connection)" | |
+| Airplane mode off | ⬜ | Expected: confirmed once on both clients, no duplicates | |
 
 ---
 
@@ -289,3 +301,4 @@ Useful for the paper's results and discussion.
 | 8 | M4 | All bubbles on the left; receiver bubble invisible (white on white) | Alignment by row gravity; grey receiver bubble | `5336ddf` |
 | 9 | M6 | A new task listener was added per member every time the Team tab opened, and never removed | One listener, removed when the tab closes | `5336ddf` |
 | 10 | M7 | Teacher view showed hard-coded sample data | Live totals and member progress from tasks | `b84b144` |
+| 11 | M5 | Cloud Storage requires the Blaze plan (card + USD 50 hold), which the group could not use | Uploads up to 5 MB stored in Firestore chunks (atomic with the log), plus link sharing for bigger files; `storage.rules` kept for later | (this increment) |
