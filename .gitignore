@@ -1,0 +1,28 @@
+# Android / Gradle build output (regenerated on every build)
+build/
+app/build/
+.gradle/
+*.apk
+*.aab
+
+# Android Studio / IntelliJ settings (per computer)
+.idea/
+*.iml
+captures/
+.externalNativeBuild/
+.cxx/
+
+# Machine-specific path to the Android SDK
+local.properties
+
+# Firebase CLI local files
+.firebase/
+firebase-debug.log
+firestore-debug.log
+
+# Claude Code local preview settings
+.claude/
+
+# OS files
+.DS_Store
+Thumbs.db

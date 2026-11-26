@@ -1,3 +1,0 @@
-com.example.studentprojecttracker.test
-style WhiteBackgroundDialogTheme
-style WhiteBackgroundTheme
