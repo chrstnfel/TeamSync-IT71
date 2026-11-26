@@ -19,14 +19,14 @@ Firebase project: `teamsync-it71` (Firestore location asia-southeast1).
 | `memberIds` | Project Member (every student, including the Project Manager) |
 | `mentorIds` | Teacher |
 
-## Collections (increments a and b)
+## Collections (increments a, b and c)
 
 | Path | Fields | Written by |
 |---|---|---|
 | `users/{uid}` | `userId`, `name`, `email`, `role` (account type), `photoUrl`, `updatedAt` | The user themself (at sign-up or first login) |
 | `projects/{projectId}` | `projectId`, `projectName`, `courseCode`, `dueDate`, `creatorId`, `leaderIds`, `memberIds`, `mentorIds`, `progressPercentage`, `createdAt`, `updatedAt`, `lastOpId` | Project Manager |
 | `projects/{projectId}/activityLogs/{logId}` | `logId`, `projectId`, `actorId` (email), `action`, `targetType`, `targetId`, `timestamp` (server time) | Every module, in the same batch as the change |
-| `projects/{projectId}/chats/{messageId}` | as in `ChatMessage` | Project Manager, Project Member |
+| `projects/{projectId}/messages/{messageId}` | `messageId`, `projectId`, `senderId` (email), `senderName`, `text` (1-2000 chars), `sentAt` (server time), `lastOpId` | Project Manager, Project Member (sender only; never edited) |
 | `projects/{projectId}/notes/{noteId}` | as in `Note` | Project Manager, Project Member |
 | `projects/{projectId}/tasks/{taskId}` | `taskId`, `projectId`, `title`, `description`, `assignedTo` (email), `dueDate` (timestamp), `status` (`To Do` / `In Progress` / `Done`), `priority` (Low/Medium/High, extra), `createdBy`, `createdAt`, `updatedAt`, `lastOpId` | Project Manager only (read by everyone in the project) |
 | `files/{fileId}` *(legacy, moves under the project in increment c)* | `name`, `url`, `uploadedAt`, `projectId` | Project Manager, Project Member |
@@ -45,7 +45,12 @@ change can never be saved without its log entry, and vice versa.
 
 `project_created`, `project_updated`, `member_invited`, `teacher_invited`,
 `member_removed`, `leaders_changed`, `task_created`, `task_updated`,
-`task_status_changed`, `task_deleted` (more are added with each increment).
+`task_status_changed`, `task_deleted`, `message_sent` (more are added with each increment).
+
+## Member progress (M6)
+
+Not stored. Each client computes it from `projects/{projectId}/tasks`: for every member,
+the number of their tasks (`assignedTo`) with each `status`, and the percentage Done.
 
 ## Storage paths
 

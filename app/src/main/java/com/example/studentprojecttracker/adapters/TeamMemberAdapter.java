@@ -78,8 +78,11 @@ public class TeamMemberAdapter extends RecyclerView.Adapter<TeamMemberAdapter.Te
             statusBadge = itemView.findViewById(R.id.statusBadge);
             tasksAssignedText = itemView.findViewById(R.id.tasksAssignedText);
             completionText = itemView.findViewById(R.id.completionText);
+            statusBreakdownText = itemView.findViewById(R.id.statusBreakdownText);
             btnMemberMenu = itemView.findViewById(R.id.btnMemberMenu);
         }
+
+        private TextView statusBreakdownText;
 
         public void bind(TeamMember member, int position, ProfilePictureManager pictureManager,
                          boolean isUserLeader, OnMemberInteractionListener listener) {
@@ -89,6 +92,12 @@ public class TeamMemberAdapter extends RecyclerView.Adapter<TeamMemberAdapter.Te
             statusBadge.setText(member.getStatus());
             tasksAssignedText.setText(String.valueOf(member.getTasksAssigned()));
             completionText.setText(member.getCompletionPercentage() + "%");
+            // FR-10: summary of this member's tasks by status
+            if (statusBreakdownText != null) {
+                statusBreakdownText.setText("To Do " + member.getTodoCount()
+                        + " • In Progress " + member.getInProgressCount()
+                        + " • Done " + member.getDoneCount());
+            }
 
             // Set status badge background
             int backgroundResource = getStatusBackground(member.getStatus());

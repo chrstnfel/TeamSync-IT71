@@ -25,14 +25,19 @@ public class ChatAdapter extends RecyclerView.Adapter<ChatAdapter.ChatViewHolder
     private String currentUserId;
 
     public ChatAdapter(List<ChatMessage> messages) {
-        this.context = context;
         this.messages = messages;
-        this.currentUserId = FirebaseAuth.getInstance().getUid();
+        // senderId is the sender's email (data contract), so compare emails
+        this.currentUserId = FirebaseAuth.getInstance().getCurrentUser() != null
+                ? com.example.studentprojecttracker.utils.DataContract.normalizeEmail(
+                        FirebaseAuth.getInstance().getCurrentUser().getEmail())
+                : null;
     }
 
     @NonNull
     @Override
     public ChatViewHolder onCreateViewHolder(@NonNull ViewGroup parent, int viewType) {
+        // The context was never set before (it assigned itself), so use the parent's
+        context = parent.getContext();
         View view = LayoutInflater.from(context).inflate(R.layout.item_chat_message, parent, false);
         return new ChatViewHolder(view);
     }
@@ -42,20 +47,17 @@ public class ChatAdapter extends RecyclerView.Adapter<ChatAdapter.ChatViewHolder
         ChatMessage msg = messages.get(position);
         holder.textMessage.setText(msg.getText());
 
-        boolean isSender = msg.getSenderId().equals(currentUserId);
+        boolean isSender = msg.getSenderId() != null && msg.getSenderId().equals(currentUserId);
 
-        LinearLayout.LayoutParams params =
-                (LinearLayout.LayoutParams) holder.messageContainer.getLayoutParams();
-
+        // The container fills the row, so align the bubble with the container's
+        // own gravity (layout_gravity has no effect on a full-width view).
         if (isSender) {
-            params.gravity = Gravity.END;
+            holder.messageContainer.setGravity(Gravity.END);
             holder.textMessage.setBackground(ContextCompat.getDrawable(context, R.drawable.bg_chat_sender));
         } else {
-            params.gravity = Gravity.START;
+            holder.messageContainer.setGravity(Gravity.START);
             holder.textMessage.setBackground(ContextCompat.getDrawable(context, R.drawable.bg_chat_receiver));
         }
-
-        holder.messageContainer.setLayoutParams(params);
     }
 
     @Override

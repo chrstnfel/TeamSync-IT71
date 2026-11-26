@@ -80,7 +80,8 @@ public class MainActivity extends AppCompatActivity {
             if (itemId == R.id.nav_tasks) {
                 selectedFragment = new TasksFragment();
             } else if (itemId == R.id.nav_chats) {
-                selectedFragment = new NotesFragment();
+                // S6 / FR-08: the project chat room (projects/{id}/messages)
+                selectedFragment = new ChatsFragment();
             } else if (itemId == R.id.nav_files) {
                 selectedFragment = new FilesFragment();
             } else if (itemId == R.id.nav_team) {

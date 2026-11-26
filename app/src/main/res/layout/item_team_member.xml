@@ -143,6 +143,16 @@
                             android:textColor="@color/text_primary" />
                     </LinearLayout>
                 </LinearLayout>
+
+                <!-- M6 / FR-10: this member's tasks by status -->
+                <TextView
+                    android:id="@+id/statusBreakdownText"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:layout_marginTop="6dp"
+                    android:text="To Do 0 • In Progress 0 • Done 0"
+                    android:textSize="12sp"
+                    android:textColor="@color/text_secondary" />
             </LinearLayout>
         </LinearLayout>
 

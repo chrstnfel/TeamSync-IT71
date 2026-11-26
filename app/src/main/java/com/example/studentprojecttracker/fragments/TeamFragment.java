@@ -20,6 +20,7 @@ import com.example.studentprojecttracker.models.Project;
 import com.example.studentprojecttracker.models.Task;
 import com.example.studentprojecttracker.models.TeamMember;
 import com.example.studentprojecttracker.models.User;
+import com.example.studentprojecttracker.utils.DataContract;
 import com.example.studentprojecttracker.utils.FirestoreHelper;
 import com.example.studentprojecttracker.utils.ProfilePictureManager;
 import com.google.firebase.auth.FirebaseAuth;
@@ -89,6 +90,44 @@ public class TeamFragment extends Fragment {
         // Load team members
         if (currentProject != null) {
             loadTeamMembers();
+            listenForTaskChanges();
+        }
+    }
+
+    // ---------- M6 Member Progress (FR-10) ----------
+    // One real-time listener on the project's tasks recalculates every member's
+    // counts when a status changes (replaces one listener per member).
+    private com.google.firebase.firestore.ListenerRegistration tasksListener;
+    private final List<Task> latestTasks = new ArrayList<>();
+    private final List<TeamMember> shownMembers = new ArrayList<>();
+
+    private void listenForTaskChanges() {
+        if (tasksListener != null) tasksListener.remove();
+        tasksListener = firestoreHelper.getProjectTasks(currentProject.getProjectId(),
+                new FirestoreHelper.TaskCallback() {
+                    @Override
+                    public void onSuccess(List<Task> tasks) {
+                        latestTasks.clear();
+                        latestTasks.addAll(tasks);
+                        for (TeamMember member : shownMembers) {
+                            calculateMemberStats(member, currentProject.getProjectId());
+                        }
+                        if (teamMemberAdapter != null) teamMemberAdapter.notifyDataSetChanged();
+                    }
+
+                    @Override
+                    public void onError(String error) {
+                        Log.e("TeamFragment", "Task listener error: " + error);
+                    }
+                });
+    }
+
+    @Override
+    public void onDestroyView() {
+        super.onDestroyView();
+        if (tasksListener != null) {
+            tasksListener.remove();
+            tasksListener = null;
         }
     }
 
@@ -516,23 +555,28 @@ public class TeamFragment extends Fragment {
      * Calculate member statistics (tasks assigned, completion %)
      */
     private void calculateMemberStats(TeamMember member, String projectId) {
-        firestoreHelper.getProjectTasks(projectId, new FirestoreHelper.TaskCallback() {
-            @Override
-            public void onSuccess(List<Task> tasks) {
+        // Computed from the latest task snapshot (no extra listener per member)
+        List<Task> tasks = latestTasks;
                 int assignedTasks = 0;
                 int completedTasks = 0;
+                int todo = 0, inProgress = 0;
+                String memberEmail = DataContract.normalizeEmail(member.getEmail());
 
                 for (Task task : tasks) {
-                    if (task.getAssigneeId() != null &&
-                            (task.getAssigneeId().equals(member.getUserId()) ||
-                                    task.getAssigneeId().equals(member.getEmail()))) {
+                    String assignee = DataContract.normalizeEmail(task.getAssigneeId());
+                    if (assignee != null && assignee.equals(memberEmail)) {
                         assignedTasks++;
                         if (task.isCompleted()) {
                             completedTasks++;
+                        } else if (DataContract.STATUS_IN_PROGRESS.equals(task.getStatus())) {
+                            inProgress++;
+                        } else {
+                            todo++;
                         }
                     }
                 }
 
+                member.setStatusCounts(todo, inProgress, completedTasks);
                 member.setTasksAssigned(assignedTasks);
 
                 if (assignedTasks > 0) {
@@ -551,25 +595,6 @@ public class TeamFragment extends Fragment {
                     member.setCompletionPercentage(0);
                     member.setStatus("On Track");
                 }
-
-                // Refresh the adapter to show updated stats
-                if (getActivity() != null) {
-                    getActivity().runOnUiThread(() -> {
-                        if (teamMemberAdapter != null) {
-                            teamMemberAdapter.notifyDataSetChanged();
-                        }
-                    });
-                }
-            }
-
-            @Override
-            public void onError(String error) {
-                // Keep default values
-                member.setTasksAssigned(0);
-                member.setCompletionPercentage(0);
-                member.setStatus("On Track");
-            }
-        });
     }
 
     /**
@@ -580,6 +605,10 @@ public class TeamFragment extends Fragment {
 
         getActivity().runOnUiThread(() -> {
             hideLoading();
+
+            // Keep the shown members so the task listener can refresh their counts
+            shownMembers.clear();
+            shownMembers.addAll(members);
 
             if (members.isEmpty()) {
                 showEmptyView();

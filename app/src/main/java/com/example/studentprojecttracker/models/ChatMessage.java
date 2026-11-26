@@ -1,11 +1,15 @@
 package com.example.studentprojecttracker.models;
 
+/**
+ * A project chat message in projects/{projectId}/messages/{messageId}
+ * (M4; Revised paper Section 4.7). senderId is the sender's email.
+ */
 public class ChatMessage {
     private String messageId;
     private String senderId;
     private String senderName;
     private String text;
-    private long timestamp;
+    private long timestamp;   // sentAt in milliseconds (0 while the server time is pending)
     private String fileUrl;
 
     public ChatMessage() {} // Firestore needs empty constructor

@@ -120,9 +120,21 @@ service cloud.firestore {
         allow delete: if signedIn() && isManagerOf(projectData(projectId));
       }
 
-      // ---------- chats (M4; renamed to messages in increment c) ----------
-      match /chats/{messageId} {
-        allow read, create: if signedIn() && isStudentOf(projectData(projectId));
+      // ---------- messages (M4 Project Chat, FR-08) ----------
+      // Project Manager and Project Members only (Section 4.7 access table).
+      // A message is sent as yourself, with server time, and is logged.
+      match /messages/{messageId} {
+        allow read: if signedIn() && isStudentOf(projectData(projectId));
+        allow create: if signedIn()
+          && isStudentOf(projectData(projectId))
+          && request.resource.data.messageId == messageId
+          && request.resource.data.projectId == projectId
+          && request.resource.data.senderId == me()
+          && request.resource.data.text is string
+          && request.resource.data.text.size() > 0
+          && request.resource.data.text.size() <= 2000
+          && request.resource.data.sentAt == request.time
+          && logWrittenWith(projectId);
         allow update, delete: if false;
       }
 

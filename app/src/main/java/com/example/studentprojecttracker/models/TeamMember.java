@@ -10,6 +10,20 @@ public class TeamMember implements Serializable {
     private String status;
     private int tasksAssigned;
     private int completionPercentage;
+    // M6 Member Progress (FR-10): the member's tasks counted by status
+    private int todoCount;
+    private int inProgressCount;
+    private int doneCount;
+
+    public int getTodoCount() { return todoCount; }
+    public int getInProgressCount() { return inProgressCount; }
+    public int getDoneCount() { return doneCount; }
+
+    public void setStatusCounts(int todo, int inProgress, int done) {
+        this.todoCount = todo;
+        this.inProgressCount = inProgress;
+        this.doneCount = done;
+    }
 
     public TeamMember() {
     }

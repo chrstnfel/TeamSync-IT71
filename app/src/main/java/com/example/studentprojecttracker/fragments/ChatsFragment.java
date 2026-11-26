@@ -7,6 +7,7 @@ import android.view.View;
 import android.view.ViewGroup;
 import android.widget.EditText;
 import android.widget.ImageView;
+import android.widget.Toast;
 
 import androidx.annotation.NonNull;
 import androidx.annotation.Nullable;
@@ -19,14 +20,19 @@ import com.example.studentprojecttracker.activities.MainActivity;
 import com.example.studentprojecttracker.adapters.ChatAdapter;
 import com.example.studentprojecttracker.models.ChatMessage;
 import com.example.studentprojecttracker.models.Project;
+import com.example.studentprojecttracker.utils.DataContract;
+import com.example.studentprojecttracker.utils.FirestoreHelper;
 import com.google.firebase.auth.FirebaseAuth;
-import com.google.firebase.firestore.*;
+import com.google.firebase.auth.FirebaseUser;
+import com.google.firebase.firestore.ListenerRegistration;
 
 import java.util.ArrayList;
-import java.util.HashMap;
 import java.util.List;
-import java.util.Map;
 
+/**
+ * M4 Project Chat (FR-08): project-level messages in projects/{projectId}/messages,
+ * updated in real time. Each message is saved with its activity log entry.
+ */
 public class ChatsFragment extends Fragment {
 
     private RecyclerView chatRecyclerView;
@@ -34,9 +40,10 @@ public class ChatsFragment extends Fragment {
     private ImageView attachIcon, sendIcon;
 
     private ChatAdapter chatAdapter;
-    private List<ChatMessage> chatList = new ArrayList<>();
+    private final List<ChatMessage> chatList = new ArrayList<>();
 
-    private FirebaseFirestore db;
+    private FirestoreHelper firestoreHelper;
+    private ListenerRegistration messagesListener;
     private String projectId;
 
     @Nullable
@@ -44,7 +51,7 @@ public class ChatsFragment extends Fragment {
     public View onCreateView(@NonNull LayoutInflater inflater, @Nullable ViewGroup container, @Nullable Bundle savedInstanceState) {
         View view = inflater.inflate(R.layout.fragment_chats, container, false);
 
-        db = FirebaseFirestore.getInstance();
+        firestoreHelper = new FirestoreHelper();
 
         // Get project from MainActivity
         Project currentProject = ((MainActivity) requireActivity()).getCurrentProject();
@@ -56,6 +63,16 @@ public class ChatsFragment extends Fragment {
         setupSend();
 
         return view;
+    }
+
+    @Override
+    public void onDestroyView() {
+        super.onDestroyView();
+        // Detach the listener when the chat is not shown (Section 4.3.5)
+        if (messagesListener != null) {
+            messagesListener.remove();
+            messagesListener = null;
+        }
     }
 
     private void initializeViews(View view) {
@@ -75,53 +92,48 @@ public class ChatsFragment extends Fragment {
         sendIcon.setOnClickListener(v -> {
             String msg = messageInput.getText().toString().trim();
             if (TextUtils.isEmpty(msg)) return;
-
+            if (msg.length() > DataContract.MSG_MAX_LENGTH) {
+                Toast.makeText(getContext(), "Message is too long", Toast.LENGTH_SHORT).show();
+                return;
+            }
             sendMessage(msg);
-            messageInput.setText("");
         });
     }
 
     private void sendMessage(String text) {
-        String uid = FirebaseAuth.getInstance().getUid();
-        String userName = FirebaseAuth.getInstance().getCurrentUser().getDisplayName(); // Or your user profile
+        FirebaseUser user = FirebaseAuth.getInstance().getCurrentUser();
+        String senderName = user != null && user.getDisplayName() != null
+                ? user.getDisplayName() : "Member";
 
-        String messageId = db.collection("projects")
-                .document(projectId)
-                .collection("chats")
-                .document().getId();
-
-        ChatMessage message = new ChatMessage(
-                messageId,
-                uid,
-                userName,
-                text,
-                System.currentTimeMillis(),
-                null
-        );
-
-        db.collection("projects")
-                .document(projectId)
-                .collection("chats")
-                .document(messageId)
-                .set(message);
+        messageInput.setText("");
+        firestoreHelper.sendMessage(projectId, senderName, text, (success, message) -> {
+            if (!isAdded() || getContext() == null) return;
+            if (!success) {
+                // Nothing was saved: give the text back so the user can retry
+                messageInput.setText(text);
+                Toast.makeText(getContext(), "Message not sent: " + message, Toast.LENGTH_SHORT).show();
+            }
+        });
     }
 
     private void listenForMessages() {
-        db.collection("projects")
-                .document(projectId)
-                .collection("chats")
-                .orderBy("timestamp", Query.Direction.ASCENDING)
-                .addSnapshotListener((value, error) -> {
-                    if (error != null) return;
-
-                    chatList.clear();
-                    for (DocumentSnapshot doc : value.getDocuments()) {
-                        ChatMessage msg = doc.toObject(ChatMessage.class);
-                        chatList.add(msg);
-                    }
-
-                    chatAdapter.notifyDataSetChanged();
+        messagesListener = firestoreHelper.listenMessages(projectId, new FirestoreHelper.MessageCallback() {
+            @Override
+            public void onSuccess(List<ChatMessage> messages) {
+                if (!isAdded()) return;
+                chatList.clear();
+                chatList.addAll(messages);
+                chatAdapter.notifyDataSetChanged();
+                if (!chatList.isEmpty()) {
                     chatRecyclerView.scrollToPosition(chatList.size() - 1);
-                });
+                }
+            }
+
+            @Override
+            public void onError(String error) {
+                if (!isAdded() || getContext() == null) return;
+                Toast.makeText(getContext(), "Chat error: " + error, Toast.LENGTH_SHORT).show();
+            }
+        });
     }
 }

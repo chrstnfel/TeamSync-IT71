@@ -21,7 +21,7 @@ public final class DataContract {
     public static final String USERS = "users";                 // users/{uid}
     public static final String PROJECTS = "projects";           // projects/{projectId}
     public static final String ACTIVITY_LOGS = "activityLogs";  // projects/{projectId}/activityLogs/{logId}
-    public static final String CHATS = "chats";                 // projects/{projectId}/chats/{messageId}
+    public static final String MESSAGES = "messages";           // projects/{projectId}/messages/{messageId}
     public static final String NOTES = "notes";                 // projects/{projectId}/notes/{noteId}
     // Moved under projects/{projectId}/ in increments (b) and (c):
     public static final String TASKS = "tasks";
@@ -70,11 +70,22 @@ public final class DataContract {
     public static final String ACTION_TASK_UPDATED = "task_updated";
     public static final String ACTION_TASK_STATUS_CHANGED = "task_status_changed";
     public static final String ACTION_TASK_DELETED = "task_deleted";
+    public static final String ACTION_MESSAGE_SENT = "message_sent";
 
     // ---------- Log target types ----------
     public static final String TARGET_PROJECT = "project";
     public static final String TARGET_MEMBER = "member";
     public static final String TARGET_TASK = "task";
+    public static final String TARGET_MESSAGE = "message";
+
+    // ---------- projects/{projectId}/messages/{messageId} (M4) ----------
+    public static final String MSG_ID = "messageId";
+    public static final String MSG_PROJECT_ID = "projectId";
+    public static final String MSG_SENDER_ID = "senderId";     // email of the sender
+    public static final String MSG_SENDER_NAME = "senderName"; // display name at send time
+    public static final String MSG_TEXT = "text";
+    public static final String MSG_SENT_AT = "sentAt";         // server timestamp
+    public static final int MSG_MAX_LENGTH = 2000;
 
     // ---------- projects/{projectId}/tasks/{taskId} (M3) ----------
     public static final String TASK_ID = "taskId";

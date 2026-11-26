@@ -416,6 +416,68 @@ public class FirestoreHelper {
                 });
     }
 
+    // ==================== CHAT OPERATIONS (M4) ====================
+
+    public interface MessageCallback {
+        void onSuccess(List<com.example.studentprojecttracker.models.ChatMessage> messages);
+        void onError(String error);
+    }
+
+    private com.google.firebase.firestore.CollectionReference messagesOf(String projectId) {
+        return db.collection(COLLECTION_PROJECTS).document(projectId).collection(DataContract.MESSAGES);
+    }
+
+    /** T6 Send chat message (UC-09): message + activity log entry in one atomic batch. */
+    public void sendMessage(String projectId, String senderName, String text, OnCompleteListener listener) {
+        String opId = ActivityLogger.newOpId();
+        com.google.firebase.firestore.DocumentReference ref = messagesOf(projectId).document();
+
+        Map<String, Object> data = new HashMap<>();
+        data.put(DataContract.MSG_ID, ref.getId());
+        data.put(DataContract.MSG_PROJECT_ID, projectId);
+        data.put(DataContract.MSG_SENDER_ID, ActivityLogger.currentActorEmail());
+        data.put(DataContract.MSG_SENDER_NAME, senderName);
+        data.put(DataContract.MSG_TEXT, text);
+        data.put(DataContract.MSG_SENT_AT, com.google.firebase.firestore.FieldValue.serverTimestamp());
+        data.put(DataContract.LAST_OP_ID, opId);
+
+        WriteBatch batch = db.batch();
+        batch.set(ref, data);
+        ActivityLogger.addToBatch(db, batch, projectId, opId,
+                DataContract.ACTION_MESSAGE_SENT, DataContract.TARGET_MESSAGE, ref.getId());
+
+        commit(batch, "Message sent", listener);
+    }
+
+    /** Real-time chat room of one project, oldest first (FR-08, FR-15). */
+    public ListenerRegistration listenMessages(String projectId, MessageCallback callback) {
+        return messagesOf(projectId)
+                .orderBy(DataContract.MSG_SENT_AT, Query.Direction.ASCENDING)
+                .addSnapshotListener((snapshot, error) -> {
+                    if (error != null) {
+                        Log.e(TAG, "Error listening to messages", error);
+                        if (callback != null) callback.onError(friendlyError(error));
+                        return;
+                    }
+                    List<com.example.studentprojecttracker.models.ChatMessage> messages = new ArrayList<>();
+                    if (snapshot != null) {
+                        for (DocumentSnapshot doc : snapshot.getDocuments()) {
+                            // Pending local writes have no server time yet; estimate it.
+                            com.google.firebase.Timestamp sentAt = doc.getTimestamp(DataContract.MSG_SENT_AT,
+                                    DocumentSnapshot.ServerTimestampBehavior.ESTIMATE);
+                            messages.add(new com.example.studentprojecttracker.models.ChatMessage(
+                                    doc.getId(),
+                                    doc.getString(DataContract.MSG_SENDER_ID),
+                                    doc.getString(DataContract.MSG_SENDER_NAME),
+                                    doc.getString(DataContract.MSG_TEXT),
+                                    sentAt != null ? sentAt.toDate().getTime() : 0,
+                                    null));
+                        }
+                    }
+                    if (callback != null) callback.onSuccess(messages);
+                });
+    }
+
     // ==================== FILE OPERATIONS ====================
 
     public interface FileCallback {
