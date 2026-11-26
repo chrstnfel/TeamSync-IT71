@@ -141,6 +141,12 @@ public class ProjectsDashboardActivity extends AppCompatActivity implements Proj
                         projectList.clear();
                         projectList.addAll(projects);
                         projectAdapter.notifyDataSetChanged();
+
+                        // M9: remind students of their deadlines once per visit
+                        if (!isAdvisorMode && !remindersChecked) {
+                            remindersChecked = true;
+                            checkDeadlineReminders(new ArrayList<>(projects));
+                        }
                     }
 
                     @Override
@@ -152,6 +158,62 @@ public class ProjectsDashboardActivity extends AppCompatActivity implements Proj
                                 "Error loading projects: " + error, Toast.LENGTH_SHORT).show();
                     }
                 });
+    }
+
+    // ---------- M9 Deadline Reminders (FR-13, T9) ----------
+    private boolean remindersChecked = false;
+
+    /**
+     * Collects the user's unfinished tasks that are overdue or due within
+     * DataContract.REMINDER_DAYS across their projects and shows them once.
+     * Reminders are generated in the app from due dates (no email/SMS).
+     */
+    private void checkDeadlineReminders(List<Project> projects) {
+        if (projects.isEmpty()) return;
+
+        List<String> lines = new ArrayList<>();
+        final int[] pending = {projects.size()};
+        long now = System.currentTimeMillis();
+        java.text.SimpleDateFormat fmt =
+                new java.text.SimpleDateFormat(DataContract.DUE_DATE_PATTERN, java.util.Locale.US);
+
+        for (Project project : projects) {
+            firestoreHelper.getDueSoonTasks(project.getProjectId(), new FirestoreHelper.TaskCallback() {
+                @Override
+                public void onSuccess(List<com.example.studentprojecttracker.models.Task> tasks) {
+                    for (com.example.studentprojecttracker.models.Task t : tasks) {
+                        String when = t.getDueDate();
+                        try {
+                            java.util.Date due = fmt.parse(t.getDueDate());
+                            // Overdue only after the whole due day has passed
+                            if (due != null && due.getTime() + 24L * 60 * 60 * 1000 < now) {
+                                when = t.getDueDate() + " (overdue)";
+                            }
+                        } catch (java.text.ParseException ignored) {
+                        }
+                        lines.add("• " + t.getTaskName() + " — " + project.getProjectName()
+                                + "\n   Due " + when + " · " + t.getStatus());
+                    }
+                    finishOne();
+                }
+
+                @Override
+                public void onError(String error) {
+                    finishOne();
+                }
+
+                private void finishOne() {
+                    pending[0]--;
+                    if (pending[0] == 0 && !lines.isEmpty() && !isFinishing()) {
+                        new AlertDialog.Builder(ProjectsDashboardActivity.this)
+                                .setTitle("Deadline reminders")
+                                .setMessage(android.text.TextUtils.join("\n\n", lines))
+                                .setPositiveButton("OK", null)
+                                .show();
+                    }
+                }
+            });
+        }
     }
 
     private void setupClickListeners() {

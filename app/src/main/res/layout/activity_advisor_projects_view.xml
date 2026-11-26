@@ -198,6 +198,56 @@
                 android:layout_height="wrap_content"
                 android:nestedScrollingEnabled="false" />
 
+            <!-- S9 / FR-11: teacher comments and feedback -->
+            <TextView
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="24dp"
+                android:layout_marginBottom="12dp"
+                android:text="Feedback"
+                android:textSize="18sp"
+                android:textStyle="bold"
+                android:textColor="@color/text_primary" />
+
+            <EditText
+                android:id="@+id/etFeedback"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:minHeight="48dp"
+                android:background="@drawable/input_background"
+                android:hint="Write feedback for the group"
+                android:inputType="textMultiLine|textCapSentences"
+                android:maxLength="2000"
+                android:padding="12dp"
+                android:textSize="14sp" />
+
+            <com.google.android.material.button.MaterialButton
+                android:id="@+id/btnPostFeedback"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:layout_gravity="end"
+                android:layout_marginTop="8dp"
+                android:backgroundTint="@color/primary"
+                android:text="Post"
+                android:textColor="@color/white"
+                app:cornerRadius="8dp" />
+
+            <TextView
+                android:id="@+id/tvNoFeedback"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="8dp"
+                android:text="No feedback yet"
+                android:textColor="@color/text_secondary"
+                android:textSize="13sp" />
+
+            <LinearLayout
+                android:id="@+id/commentsContainer"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="8dp"
+                android:orientation="vertical" />
+
         </LinearLayout>
     </ScrollView>
 

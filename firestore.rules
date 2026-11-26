@@ -138,6 +138,24 @@ service cloud.firestore {
         allow update, delete: if false;
       }
 
+      // ---------- comments (M7 Teacher Monitoring, FR-11) ----------
+      // Read by everyone in the project (shown to members, UC-11).
+      // Only an invited Teacher posts, as themselves, with server time, logged.
+      match /comments/{commentId} {
+        allow read: if signedIn() && inProject(projectData(projectId));
+        allow create: if signedIn()
+          && isTeacherOf(projectData(projectId))
+          && request.resource.data.commentId == commentId
+          && request.resource.data.projectId == projectId
+          && request.resource.data.teacherId == me()
+          && request.resource.data.text is string
+          && request.resource.data.text.size() > 0
+          && request.resource.data.text.size() <= 2000
+          && request.resource.data.createdAt == request.time
+          && logWrittenWith(projectId);
+        allow update, delete: if false;
+      }
+
       // ---------- notes (extra feature kept from the 3rd-year app) ----------
       match /notes/{noteId} {
         allow read, write: if signedIn() && isStudentOf(projectData(projectId));

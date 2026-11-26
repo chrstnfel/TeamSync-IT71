@@ -19,7 +19,7 @@ Firebase project: `teamsync-it71` (Firestore location asia-southeast1).
 | `memberIds` | Project Member (every student, including the Project Manager) |
 | `mentorIds` | Teacher |
 
-## Collections (increments a, b and c)
+## Collections (increments a to d)
 
 | Path | Fields | Written by |
 |---|---|---|
@@ -29,7 +29,8 @@ Firebase project: `teamsync-it71` (Firestore location asia-southeast1).
 | `projects/{projectId}/messages/{messageId}` | `messageId`, `projectId`, `senderId` (email), `senderName`, `text` (1-2000 chars), `sentAt` (server time), `lastOpId` | Project Manager, Project Member (sender only; never edited) |
 | `projects/{projectId}/notes/{noteId}` | as in `Note` | Project Manager, Project Member |
 | `projects/{projectId}/tasks/{taskId}` | `taskId`, `projectId`, `title`, `description`, `assignedTo` (email), `dueDate` (timestamp), `status` (`To Do` / `In Progress` / `Done`), `priority` (Low/Medium/High, extra), `createdBy`, `createdAt`, `updatedAt`, `lastOpId` | Project Manager only (read by everyone in the project) |
-| `files/{fileId}` *(legacy, moves under the project in increment c)* | `name`, `url`, `uploadedAt`, `projectId` | Project Manager, Project Member |
+| `projects/{projectId}/comments/{commentId}` | `commentId`, `projectId`, `teacherId` (email), `teacherName`, `text` (1-2000 chars), `createdAt` (server time), `lastOpId` | Teacher only (read by everyone in the project; never edited) |
+| `files/{fileId}` *(legacy, moves under the project in increment c part 2)* | `name`, `url`, `uploadedAt`, `projectId` | Project Manager, Project Member |
 
 ## Atomic record + log (NFR-09)
 
@@ -45,12 +46,20 @@ change can never be saved without its log entry, and vice versa.
 
 `project_created`, `project_updated`, `member_invited`, `teacher_invited`,
 `member_removed`, `leaders_changed`, `task_created`, `task_updated`,
-`task_status_changed`, `task_deleted`, `message_sent` (more are added with each increment).
+`task_status_changed`, `task_deleted`, `message_sent`, `comment_posted`.
+Deadline reminders (T9) are not logged, as in Section 4.4.4.
 
-## Member progress (M6)
+## Member progress (M6) and teacher overview (M7)
 
 Not stored. Each client computes it from `projects/{projectId}/tasks`: for every member,
 the number of their tasks (`assignedTo`) with each `status`, and the percentage Done.
+The teacher overview adds the project totals (all tasks, Done tasks, members).
+
+## Deadline reminders (M9)
+
+Not stored. When a student opens the dashboard, the app queries each of their projects'
+tasks with `assignedTo == <their email>` and lists those whose `status` is not `Done` and
+whose `dueDate` is overdue or within 3 days. No email, SMS or push (Chapter I limitations).
 
 ## Storage paths
 

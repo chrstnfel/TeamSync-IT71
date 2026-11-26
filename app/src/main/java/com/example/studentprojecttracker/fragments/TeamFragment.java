@@ -91,7 +91,33 @@ public class TeamFragment extends Fragment {
         if (currentProject != null) {
             loadTeamMembers();
             listenForTaskChanges();
+            listenForFeedback(view);
         }
+    }
+
+    // ---------- UC-11: teacher feedback shown to the project members ----------
+    private com.google.firebase.firestore.ListenerRegistration commentsListener;
+
+    private void listenForFeedback(View root) {
+        View section = root.findViewById(R.id.feedbackSection);
+        android.widget.LinearLayout container = root.findViewById(R.id.feedbackContainer);
+        if (section == null || container == null) return;
+
+        commentsListener = firestoreHelper.listenComments(currentProject.getProjectId(),
+                new FirestoreHelper.CommentCallback() {
+                    @Override
+                    public void onSuccess(List<com.example.studentprojecttracker.models.Comment> comments) {
+                        if (!isAdded()) return;
+                        section.setVisibility(comments.isEmpty() ? View.GONE : View.VISIBLE);
+                        com.example.studentprojecttracker.utils.CommentViews.render(
+                                requireContext(), container, comments);
+                    }
+
+                    @Override
+                    public void onError(String error) {
+                        Log.e("TeamFragment", "Feedback listener error: " + error);
+                    }
+                });
     }
 
     // ---------- M6 Member Progress (FR-10) ----------
@@ -128,6 +154,10 @@ public class TeamFragment extends Fragment {
         if (tasksListener != null) {
             tasksListener.remove();
             tasksListener = null;
+        }
+        if (commentsListener != null) {
+            commentsListener.remove();
+            commentsListener = null;
         }
     }
 

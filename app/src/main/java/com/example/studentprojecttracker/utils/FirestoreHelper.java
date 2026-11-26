@@ -478,6 +478,99 @@ public class FirestoreHelper {
                 });
     }
 
+    // ==================== TEACHER COMMENTS (M7) ====================
+
+    public interface CommentCallback {
+        void onSuccess(List<com.example.studentprojecttracker.models.Comment> comments);
+        void onError(String error);
+    }
+
+    private com.google.firebase.firestore.CollectionReference commentsOf(String projectId) {
+        return db.collection(COLLECTION_PROJECTS).document(projectId).collection(DataContract.COMMENTS);
+    }
+
+    /** T8 Leave feedback (UC-11): comment + activity log entry in one atomic batch. */
+    public void postComment(String projectId, String teacherName, String text, OnCompleteListener listener) {
+        String opId = ActivityLogger.newOpId();
+        com.google.firebase.firestore.DocumentReference ref = commentsOf(projectId).document();
+
+        Map<String, Object> data = new HashMap<>();
+        data.put(DataContract.COMMENT_ID, ref.getId());
+        data.put(DataContract.COMMENT_PROJECT_ID, projectId);
+        data.put(DataContract.COMMENT_TEACHER_ID, ActivityLogger.currentActorEmail());
+        data.put(DataContract.COMMENT_TEACHER_NAME, teacherName);
+        data.put(DataContract.COMMENT_TEXT, text);
+        data.put(DataContract.COMMENT_CREATED_AT, com.google.firebase.firestore.FieldValue.serverTimestamp());
+        data.put(DataContract.LAST_OP_ID, opId);
+
+        WriteBatch batch = db.batch();
+        batch.set(ref, data);
+        ActivityLogger.addToBatch(db, batch, projectId, opId,
+                DataContract.ACTION_COMMENT_POSTED, DataContract.TARGET_COMMENT, ref.getId());
+
+        commit(batch, "Feedback posted", listener);
+    }
+
+    /** Real-time teacher feedback of one project, newest first (FR-11). */
+    public ListenerRegistration listenComments(String projectId, CommentCallback callback) {
+        return commentsOf(projectId)
+                .orderBy(DataContract.COMMENT_CREATED_AT, Query.Direction.DESCENDING)
+                .addSnapshotListener((snapshot, error) -> {
+                    if (error != null) {
+                        Log.e(TAG, "Error listening to comments", error);
+                        if (callback != null) callback.onError(friendlyError(error));
+                        return;
+                    }
+                    List<com.example.studentprojecttracker.models.Comment> comments = new ArrayList<>();
+                    if (snapshot != null) {
+                        for (DocumentSnapshot doc : snapshot.getDocuments()) {
+                            com.google.firebase.Timestamp at = doc.getTimestamp(DataContract.COMMENT_CREATED_AT,
+                                    DocumentSnapshot.ServerTimestampBehavior.ESTIMATE);
+                            comments.add(new com.example.studentprojecttracker.models.Comment(
+                                    doc.getId(),
+                                    doc.getString(DataContract.COMMENT_TEACHER_ID),
+                                    doc.getString(DataContract.COMMENT_TEACHER_NAME),
+                                    doc.getString(DataContract.COMMENT_TEXT),
+                                    at != null ? at.toDate().getTime() : 0));
+                        }
+                    }
+                    if (callback != null) callback.onSuccess(comments);
+                });
+    }
+
+    // ==================== DEADLINE REMINDERS (M9) ====================
+
+    /**
+     * T9 Deadline reminder (FR-13): the signed-in user's unfinished tasks in one
+     * project that are overdue or due within REMINDER_DAYS. Generated in the app
+     * from task due dates (no email or push), so it runs when the app is opened.
+     */
+    public void getDueSoonTasks(String projectId, TaskCallback callback) {
+        String me = ActivityLogger.currentActorEmail();
+        long limit = System.currentTimeMillis() + DataContract.REMINDER_DAYS * 24L * 60 * 60 * 1000;
+
+        tasksOf(projectId)
+                .whereEqualTo(DataContract.TASK_ASSIGNED_TO, me)
+                .get()
+                .addOnSuccessListener(snapshot -> {
+                    List<Task> due = new ArrayList<>();
+                    for (DocumentSnapshot doc : snapshot.getDocuments()) {
+                        com.google.firebase.Timestamp dueAt = doc.getTimestamp(DataContract.TASK_DUE_DATE);
+                        String status = doc.getString(DataContract.TASK_STATUS);
+                        if (dueAt != null && !DataContract.STATUS_DONE.equals(status)
+                                && dueAt.toDate().getTime() <= limit) {
+                            Task task = documentToTask(doc);
+                            if (task != null) due.add(task);
+                        }
+                    }
+                    if (callback != null) callback.onSuccess(due);
+                })
+                .addOnFailureListener(e -> {
+                    Log.e(TAG, "Could not load reminders", e);
+                    if (callback != null) callback.onError(friendlyError(e));
+                });
+    }
+
     // ==================== FILE OPERATIONS ====================
 
     public interface FileCallback {

@@ -87,6 +87,21 @@ public final class DataContract {
     public static final String MSG_SENT_AT = "sentAt";         // server timestamp
     public static final int MSG_MAX_LENGTH = 2000;
 
+    // ---------- projects/{projectId}/comments/{commentId} (M7) ----------
+    public static final String COMMENTS = "comments";
+    public static final String COMMENT_ID = "commentId";
+    public static final String COMMENT_PROJECT_ID = "projectId";
+    public static final String COMMENT_TEACHER_ID = "teacherId";     // email of the teacher
+    public static final String COMMENT_TEACHER_NAME = "teacherName";
+    public static final String COMMENT_TEXT = "text";
+    public static final String COMMENT_CREATED_AT = "createdAt";     // server timestamp
+    public static final String ACTION_COMMENT_POSTED = "comment_posted";
+    public static final String TARGET_COMMENT = "comment";
+
+    // ---------- M9 Deadline reminders ----------
+    /** Unfinished tasks due within this many days (or overdue) are reminded. */
+    public static final int REMINDER_DAYS = 3;
+
     // ---------- projects/{projectId}/tasks/{taskId} (M3) ----------
     public static final String TASK_ID = "taskId";
     public static final String TASK_PROJECT_ID = "projectId";
