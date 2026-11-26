@@ -23,7 +23,7 @@ Firebase project: `teamsync-it71` (Firestore location asia-southeast1).
 
 | Path | Fields | Written by |
 |---|---|---|
-| `users/{uid}` | `userId`, `name`, `email`, `role` (account type), `photoUrl`, `updatedAt` | The user themself (at sign-up or first login) |
+| `users/{uid}` | `userId`, `name`, `email`, `role` (account type), `photoUrl` (profile picture as a `data:image/jpeg;base64` string, about 256 px, max 300 KB), `updatedAt` | The user themself (at sign-up or first login) |
 | `projects/{projectId}` | `projectId`, `projectName`, `courseCode`, `dueDate`, `creatorId`, `leaderIds`, `memberIds`, `mentorIds`, `progressPercentage`, `createdAt`, `updatedAt`, `lastOpId` | Project Manager |
 | `projects/{projectId}/activityLogs/{logId}` | `logId`, `projectId`, `actorId` (email), `action`, `targetType`, `targetId`, `timestamp` (server time) | Every module, in the same batch as the change |
 | `projects/{projectId}/messages/{messageId}` | `messageId`, `projectId`, `senderId` (email), `senderName`, `text` (1-2000 chars), `sentAt` (server time), `lastOpId` | Project Manager, Project Member (sender only; never edited) |
@@ -83,7 +83,6 @@ Firestore's free plan stores 1 GiB in total, which is about 200 files of 5 MB.
 | Path | Rule |
 |---|---|
 | `projects/{projectId}/files/{fileId}/{fileName}` | Students of the project, 25 MB or less |
-| `profile_images/{uid}.jpg` | Only that user, image 5 MB or less |
 | `project_files/{fileName}` *(legacy)* | Signed-in users, 25 MB or less |
 
 ## Paper update (Section 4.7)

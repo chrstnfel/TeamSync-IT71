@@ -48,6 +48,73 @@ public class ProfilePictureManager {
      * @param userId User ID or email
      * @param imageView Target ImageView
      */
+    /**
+     * Loads the signed-in user's own photo from users/{uid} into the ImageView.
+     * Used by the dashboard, profile and edit-profile screens.
+     */
+    public void loadMyPhoto(Context context, ImageView imageView) {
+        FirebaseUser me = FirebaseAuth.getInstance().getCurrentUser();
+        if (context == null || imageView == null || me == null) return;
+        firestoreHelper.getUserProfile(me.getUid(), new FirestoreHelper.UserCallback() {
+            @Override
+            public void onSuccess(User user) {
+                if (user.getPhotoUrl() != null && !user.getPhotoUrl().isEmpty()) {
+                    loadImageWithGlide(context, user.getPhotoUrl(), imageView);
+                } else {
+                    imageView.setImageResource(R.drawable.ic_avatar_placeholder);
+                }
+            }
+
+            @Override
+            public void onError(String error) {
+                imageView.setImageResource(R.drawable.ic_avatar_placeholder);
+            }
+        });
+    }
+
+    /** Largest side of a stored profile picture, in pixels. */
+    public static final int AVATAR_MAX_PX = 256;
+
+    /**
+     * Profile pictures are stored in Firestore instead of Cloud Storage (which
+     * needs the Blaze plan): the picked image is scaled down to 256 px, saved
+     * as JPEG and turned into a "data:image/jpeg;base64,..." string of a few
+     * dozen KB, which Glide can display directly.
+     */
+    public static String encodeAvatar(Context context, android.net.Uri uri) throws java.io.IOException {
+        android.content.ContentResolver resolver = context.getContentResolver();
+
+        // 1) Read only the size, then decode a smaller copy to save memory
+        android.graphics.BitmapFactory.Options bounds = new android.graphics.BitmapFactory.Options();
+        bounds.inJustDecodeBounds = true;
+        try (java.io.InputStream in = resolver.openInputStream(uri)) {
+            android.graphics.BitmapFactory.decodeStream(in, null, bounds);
+        }
+        int sample = 1;
+        while (Math.max(bounds.outWidth, bounds.outHeight) / (sample * 2) >= AVATAR_MAX_PX) sample *= 2;
+
+        android.graphics.BitmapFactory.Options opts = new android.graphics.BitmapFactory.Options();
+        opts.inSampleSize = sample;
+        android.graphics.Bitmap bitmap;
+        try (java.io.InputStream in = resolver.openInputStream(uri)) {
+            bitmap = android.graphics.BitmapFactory.decodeStream(in, null, opts);
+        }
+        if (bitmap == null) throw new java.io.IOException("Not an image");
+
+        // 2) Scale so the longest side is at most 256 px
+        float scale = Math.min(1f, (float) AVATAR_MAX_PX / Math.max(bitmap.getWidth(), bitmap.getHeight()));
+        if (scale < 1f) {
+            bitmap = android.graphics.Bitmap.createScaledBitmap(bitmap,
+                    Math.round(bitmap.getWidth() * scale), Math.round(bitmap.getHeight() * scale), true);
+        }
+
+        // 3) JPEG + Base64 data URI
+        java.io.ByteArrayOutputStream out = new java.io.ByteArrayOutputStream();
+        bitmap.compress(android.graphics.Bitmap.CompressFormat.JPEG, 80, out);
+        return "data:image/jpeg;base64,"
+                + android.util.Base64.encodeToString(out.toByteArray(), android.util.Base64.NO_WRAP);
+    }
+
     public void loadProfilePicture(Context context, String userId, ImageView imageView) {
         if (context == null || userId == null || imageView == null) {
             return;
@@ -62,17 +129,8 @@ public class ProfilePictureManager {
             }
         }
 
-        // Check if it's the current user - use Firebase Auth
-        FirebaseUser currentUser = FirebaseAuth.getInstance().getCurrentUser();
-        if (currentUser != null && userId.equals(currentUser.getEmail())) {
-            if (currentUser.getPhotoUrl() != null) {
-                String photoUrl = currentUser.getPhotoUrl().toString();
-                photoUrlCache.put(userId, photoUrl);
-                loadImageWithGlide(context, photoUrl, imageView);
-                return;
-            }
-        }
-
+        // Photos are stored in users/{uid}.photoUrl in Firestore (as a small
+        // data:image/jpeg;base64 image), so always read the profile from there.
         // Load from Firestore - use email query if it looks like an email
         if (userId.contains("@")) {
             loadProfilePictureByEmail(context, userId, imageView);

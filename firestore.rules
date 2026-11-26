@@ -68,9 +68,14 @@ service cloud.firestore {
     // to invite by email); a user can only write their own profile.
     match /users/{uid} {
       allow read: if signedIn();
+      // photoUrl holds a small profile picture (data:image/jpeg;base64, about
+      // 256 px) because Cloud Storage needs the Blaze plan; limited to 300 KB.
       allow create, update: if signedIn()
         && request.auth.uid == uid
-        && request.resource.data.email == me();
+        && request.resource.data.email == me()
+        && (!('photoUrl' in request.resource.data)
+            || (request.resource.data.photoUrl is string
+                && request.resource.data.photoUrl.size() <= 300000));
       allow delete: if false;
     }
 

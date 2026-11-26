@@ -220,5 +220,6 @@ file content is stored in Cloud Firestore chunks, and Cloud Storage is not used.
   https://teamsync-it71.web.app (Firebase Hosting).
 - **Section 4.4.3:** members open the chat room from the "Chat" tab (Tasks · Chat · Files ·
   Team).
-- **Profile pictures** (an extra feature from the 3rd-year app) still use Cloud Storage, so
-  changing a profile picture does not work in this release.
+- **Profile pictures** (an extra feature from the 3rd-year app) are also stored in Cloud
+  Firestore instead of Cloud Storage: the picture is scaled to 256 px and saved in
+  `users/{uid}.photoUrl` as a small `data:image/jpeg;base64` string (max 300 KB).

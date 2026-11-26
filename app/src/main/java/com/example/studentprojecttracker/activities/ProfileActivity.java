@@ -90,17 +90,9 @@ public class ProfileActivity extends AppCompatActivity {
                 tvProfileName.setText("User");
             }
 
-            // Load profile picture using Glide
-            if (user.getPhotoUrl() != null) {
-                Glide.with(this)
-                        .load(user.getPhotoUrl())
-                        .circleCrop()
-                        .placeholder(R.drawable.ic_avatar_placeholder)
-                        .error(R.drawable.ic_avatar_placeholder)
-                        .into(imgProfileAvatar);
-            } else {
-                imgProfileAvatar.setImageResource(R.drawable.ic_avatar_placeholder);
-            }
+            // Profile picture is stored in users/{uid} in Firestore
+            com.example.studentprojecttracker.utils.ProfilePictureManager.getInstance()
+                    .loadMyPhoto(this, imgProfileAvatar);
         }
 
         // Load saved view mode

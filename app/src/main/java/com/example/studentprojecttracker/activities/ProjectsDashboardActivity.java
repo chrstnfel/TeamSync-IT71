@@ -101,18 +101,9 @@ public class ProjectsDashboardActivity extends AppCompatActivity implements Proj
     }
 
     private void loadUserProfilePicture() {
-        FirebaseUser user = mAuth.getCurrentUser();
-        if (user != null && user.getPhotoUrl() != null) {
-            Glide.with(this)
-                    .load(user.getPhotoUrl())
-                    .circleCrop()
-                    .placeholder(R.drawable.ic_avatar_placeholder)
-                    .error(R.drawable.ic_avatar_placeholder)
-                    .into(btnProfile);
-        } else {
-            // Set default avatar if no photo
-            btnProfile.setImageResource(R.drawable.ic_avatar_placeholder);
-        }
+        // Profile picture is stored in users/{uid} in Firestore (not Cloud Storage)
+        com.example.studentprojecttracker.utils.ProfilePictureManager.getInstance()
+                .loadMyPhoto(this, btnProfile);
     }
 
     private void setupRecyclerView() {

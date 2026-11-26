@@ -23,8 +23,6 @@ import com.google.android.material.textfield.TextInputEditText;
 import com.google.firebase.auth.FirebaseAuth;
 import com.google.firebase.auth.FirebaseUser;
 import com.google.firebase.auth.UserProfileChangeRequest;
-import com.google.firebase.storage.FirebaseStorage;
-import com.google.firebase.storage.StorageReference;
 
 public class EditProfileActivity extends AppCompatActivity {
 
@@ -35,7 +33,6 @@ public class EditProfileActivity extends AppCompatActivity {
 
     private FirebaseAuth mAuth;
     private FirestoreHelper firestoreHelper;
-    private StorageReference storageReference;
 
     private Uri selectedImageUri;
     private String currentPhotoUrl;
@@ -49,7 +46,6 @@ public class EditProfileActivity extends AppCompatActivity {
 
         mAuth = FirebaseAuth.getInstance();
         firestoreHelper = new FirestoreHelper();
-        storageReference = FirebaseStorage.getInstance().getReference();
 
         initializeViews();
         setupImagePicker();
@@ -96,17 +92,7 @@ public class EditProfileActivity extends AppCompatActivity {
             etEmail.setText(user.getEmail());
             etEmail.setEnabled(false); // Email changes require re-authentication
 
-            // Load profile photo
-            currentPhotoUrl = user.getPhotoUrl() != null ? user.getPhotoUrl().toString() : null;
-            if (currentPhotoUrl != null && !currentPhotoUrl.isEmpty()) {
-                Glide.with(this)
-                        .load(currentPhotoUrl)
-                        .circleCrop()
-                        .placeholder(R.drawable.ic_avatar_placeholder)
-                        .into(imgEditAvatar);
-            }
-
-            // Load additional user data from Firestore
+            // The photo is stored in users/{uid} in Firestore (not Cloud Storage)
             loadUserFromFirestore(user.getUid());
         }
     }
@@ -115,8 +101,14 @@ public class EditProfileActivity extends AppCompatActivity {
         firestoreHelper.getUserProfile(userId, new FirestoreHelper.UserCallback() {
             @Override
             public void onSuccess(User user) {
-                // User data loaded successfully
-                // You can populate additional fields here if needed
+                currentPhotoUrl = user.getPhotoUrl();
+                if (selectedImageUri == null && currentPhotoUrl != null && !currentPhotoUrl.isEmpty()) {
+                    Glide.with(EditProfileActivity.this)
+                            .load(currentPhotoUrl)
+                            .circleCrop()
+                            .placeholder(R.drawable.ic_avatar_placeholder)
+                            .into(imgEditAvatar);
+                }
             }
 
             @Override
@@ -163,28 +155,21 @@ public class EditProfileActivity extends AppCompatActivity {
         }
     }
 
+    /**
+     * Cloud Storage needs the Blaze plan, so the picture is shrunk to 256 px,
+     * turned into a small data:image/jpeg;base64 string and saved in
+     * users/{uid}.photoUrl in Firestore.
+     */
     private void uploadProfileImage(String userId, String displayName) {
-        // Create a reference to the profile image location
-        StorageReference profileImageRef = storageReference
-                .child("profile_images")
-                .child(userId + ".jpg");
-
-        // Upload the image
-        profileImageRef.putFile(selectedImageUri)
-                .addOnSuccessListener(taskSnapshot -> {
-                    // Get the download URL
-                    profileImageRef.getDownloadUrl()
-                            .addOnSuccessListener(uri -> {
-                                String photoUrl = uri.toString();
-                                updateUserProfile(displayName, photoUrl);
-                            })
-                            .addOnFailureListener(e -> {
-                                showError("Failed to get image URL: " + e.getMessage());
-                            });
-                })
-                .addOnFailureListener(e -> {
-                    showError("Failed to upload image: " + e.getMessage());
-                });
+        Uri picked = selectedImageUri;
+        new Thread(() -> {
+            try {
+                String dataUri = ProfilePictureManager.encodeAvatar(getApplicationContext(), picked);
+                runOnUiThread(() -> updateUserProfile(displayName, dataUri));
+            } catch (Exception e) {
+                runOnUiThread(() -> showError("Could not read the picture"));
+            }
+        }).start();
     }
 
     private void updateUserProfile(String displayName, String photoUrl) {
@@ -198,7 +183,9 @@ public class EditProfileActivity extends AppCompatActivity {
         UserProfileChangeRequest.Builder profileUpdates = new UserProfileChangeRequest.Builder()
                 .setDisplayName(displayName);
 
-        if (photoUrl != null && !photoUrl.isEmpty()) {
+        // The photo itself lives in Firestore; Firebase Auth only keeps web links,
+        // so a data: image is not copied into the Auth profile.
+        if (photoUrl != null && photoUrl.startsWith("https://")) {
             profileUpdates.setPhotoUri(Uri.parse(photoUrl));
         }
 
@@ -231,7 +218,8 @@ public class EditProfileActivity extends AppCompatActivity {
 
                 if (success) {
                     // Clear profile picture cache so it reloads everywhere
-                    ProfilePictureManager.getInstance().clearCache(userId);
+                    // (team lists cache by email, so clear everything)
+                    ProfilePictureManager.getInstance().clearAllCache();
 
                     Toast.makeText(EditProfileActivity.this,
                             "Profile updated successfully",
