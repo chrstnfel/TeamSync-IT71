@@ -193,6 +193,7 @@ public class AddTaskActivity extends AppCompatActivity {
         if (editingTask != null) {
             etTaskName.setText(editingTask.getTaskName());
             etDueDate.setText(editingTask.getDueDate());
+            etAdditionalNotes.setText(editingTask.getDescription());
 
             // Set priority
             String priority = editingTask.getPriority();
@@ -260,6 +261,13 @@ public class AddTaskActivity extends AppCompatActivity {
             return;
         }
 
+        // Section 4.3.4: a task without an assigned member is invalid input
+        if (spinnerAssignTo.getSelectedItemPosition() <= 0) {
+            android.widget.Toast.makeText(this, "Please assign the task to a member",
+                    android.widget.Toast.LENGTH_SHORT).show();
+            return;
+        }
+
         // Get selected priority
         String priority = spinnerPriority.getSelectedItem().toString();
 
@@ -289,6 +297,7 @@ public class AddTaskActivity extends AppCompatActivity {
             // Update existing task
             task = editingTask;
             task.setTaskName(name);
+            task.setDescription(notes);
             task.setPriority(priority);
             task.setAssigneeId(assigneeId);
             task.setAssigneeName(assigneeName);
@@ -301,11 +310,12 @@ public class AddTaskActivity extends AppCompatActivity {
             task = new Task(
                     taskId,
                     name,
+                    notes,
                     priority,
                     assigneeId,
                     assigneeName,
                     due,
-                    false,
+                    com.example.studentprojecttracker.utils.DataContract.STATUS_TODO,
                     projectId,
                     currentUserId
             );

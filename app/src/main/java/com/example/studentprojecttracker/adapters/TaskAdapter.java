@@ -15,6 +15,7 @@ import androidx.recyclerview.widget.RecyclerView;
 
 import com.example.studentprojecttracker.R;
 import com.example.studentprojecttracker.models.Task;
+import com.example.studentprojecttracker.utils.DataContract;
 import com.google.android.material.card.MaterialCardView;
 
 import java.util.List;
@@ -27,7 +28,8 @@ public class TaskAdapter extends RecyclerView.Adapter<TaskAdapter.TaskViewHolder
     private OnTaskInteractionListener listener;
 
     public interface OnTaskInteractionListener {
-        void onTaskChecked(Task task, int position, boolean isChecked);
+        /** The Project Manager picked a new status (To Do, In Progress, Done). */
+        void onStatusChange(Task task, int position, String newStatus);
         void onTaskEdit(Task task, int position);
         void onTaskDelete(Task task, int position);
     }
@@ -61,14 +63,14 @@ public class TaskAdapter extends RecyclerView.Adapter<TaskAdapter.TaskViewHolder
 
     class TaskViewHolder extends RecyclerView.ViewHolder {
         private MaterialCardView cardView;
-        private CheckBox checkBox;
+        private TextView tvStatus;
         private TextView tvTaskName, tvPriority, tvAssignee, tvDueDate;
         private ImageView btnMenu;
 
         public TaskViewHolder(@NonNull View itemView) {
             super(itemView);
             cardView = itemView.findViewById(R.id.cardView);
-            checkBox = itemView.findViewById(R.id.taskCheckbox);
+            tvStatus = itemView.findViewById(R.id.tvStatus);
             tvTaskName = itemView.findViewById(R.id.tvTaskName);
             tvPriority = itemView.findViewById(R.id.tvPriority);
             tvAssignee = itemView.findViewById(R.id.tvAssignee);
@@ -86,7 +88,8 @@ public class TaskAdapter extends RecyclerView.Adapter<TaskAdapter.TaskViewHolder
             tvDueDate.setText("Due: " + task.getDueDate());
 
             // Set card background color based on priority
-            switch (task.getPriority()) {
+            String priority = task.getPriority() != null ? task.getPriority() : "";
+            switch (priority) {
                 case "High":
                     cardView.setCardBackgroundColor(
                             itemView.getContext().getResources().getColor(R.color.priority_high));
@@ -110,9 +113,16 @@ public class TaskAdapter extends RecyclerView.Adapter<TaskAdapter.TaskViewHolder
             else if ("Low".equals(task.getPriority())) bgResource = R.drawable.badge_low;
             tvPriority.setBackgroundResource(bgResource);
 
-            // Checkbox
-            checkBox.setOnCheckedChangeListener(null);
-            checkBox.setChecked(task.isCompleted());
+            // Status badge (FR-06)
+            String status = task.getStatus() != null ? task.getStatus() : DataContract.STATUS_TODO;
+            tvStatus.setText(status);
+            if (DataContract.STATUS_DONE.equals(status)) {
+                tvStatus.setBackgroundResource(R.drawable.badge_ahead);
+            } else if (DataContract.STATUS_IN_PROGRESS.equals(status)) {
+                tvStatus.setBackgroundResource(R.drawable.badge_on_track);
+            } else {
+                tvStatus.setBackgroundResource(R.drawable.badge_todo);
+            }
 
             if (task.isCompleted()) {
                 tvTaskName.setPaintFlags(tvTaskName.getPaintFlags() | Paint.STRIKE_THRU_TEXT_FLAG);
@@ -120,12 +130,11 @@ public class TaskAdapter extends RecyclerView.Adapter<TaskAdapter.TaskViewHolder
                 tvTaskName.setPaintFlags(tvTaskName.getPaintFlags() & (~Paint.STRIKE_THRU_TEXT_FLAG));
             }
 
-            boolean canCheck = currentUserId.equals(task.getAssigneeId()) || isUserLeader;
-            checkBox.setEnabled(canCheck);
-            if (canCheck) {
-                checkBox.setOnCheckedChangeListener((buttonView, isChecked) -> {
-                    if (listener != null) listener.onTaskChecked(task, position, isChecked);
-                });
+            // NFR-07: only the Project Manager marks task status.
+            tvStatus.setOnClickListener(null);
+            tvStatus.setClickable(isUserLeader);
+            if (isUserLeader) {
+                tvStatus.setOnClickListener(v -> showStatusMenu(v, task, position));
             }
 
             // Menu button visibility and actions
@@ -162,6 +171,21 @@ public class TaskAdapter extends RecyclerView.Adapter<TaskAdapter.TaskViewHolder
                 return username;
             }
             return email != null ? email : "Unknown";
+        }
+
+        private void showStatusMenu(View view, Task task, int position) {
+            PopupMenu popup = new PopupMenu(view.getContext(), view);
+            for (String s : DataContract.TASK_STATUSES) {
+                popup.getMenu().add(s);
+            }
+            popup.setOnMenuItemClickListener(item -> {
+                String newStatus = item.getTitle().toString();
+                if (!newStatus.equals(task.getStatus()) && listener != null) {
+                    listener.onStatusChange(task, position, newStatus);
+                }
+                return true;
+            });
+            popup.show();
         }
 
         private void showTaskMenu(View view, Task task, int position) {

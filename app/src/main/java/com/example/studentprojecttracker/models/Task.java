@@ -1,38 +1,40 @@
 package com.example.studentprojecttracker.models;
 
+import com.example.studentprojecttracker.utils.DataContract;
+
 import java.io.Serializable;
 
+/**
+ * A task in projects/{projectId}/tasks/{taskId} (M3; Revised paper Section 4.7).
+ * Firestore fields: title, description, assignedTo (email), dueDate, status,
+ * priority, projectId, createdBy. assigneeName is only used for display.
+ */
 public class Task implements Serializable {
     private String taskId;
-    private String taskName;
+    private String taskName;      // stored as "title"
+    private String description;
     private String priority;
-    private String assigneeId;  // User ID of assigned person
-    private String assigneeName;  // Display name
-    private String dueDate;
-    private boolean isCompleted;
+    private String assigneeId;    // stored as "assignedTo" (email of the member)
+    private String assigneeName;  // display only, not stored
+    private String dueDate;       // shown as M/d/yyyy, stored as a Firestore timestamp
+    private String status = DataContract.STATUS_TODO;
     private String projectId;
-    private String createdBy;  // Leader who created the task
+    private String createdBy;     // Project Manager who created the task
 
     public Task() {
     }
 
-    public Task(String taskName, String priority, String assigneeName, String dueDate, boolean isCompleted) {
-        this.taskName = taskName;
-        this.priority = priority;
-        this.assigneeName = assigneeName;
-        this.dueDate = dueDate;
-        this.isCompleted = isCompleted;
-    }
-
-    public Task(String taskId, String taskName, String priority, String assigneeId, String assigneeName,
-                String dueDate, boolean isCompleted, String projectId, String createdBy) {
+    public Task(String taskId, String taskName, String description, String priority,
+                String assigneeId, String assigneeName, String dueDate, String status,
+                String projectId, String createdBy) {
         this.taskId = taskId;
         this.taskName = taskName;
+        this.description = description;
         this.priority = priority;
         this.assigneeId = assigneeId;
         this.assigneeName = assigneeName;
         this.dueDate = dueDate;
-        this.isCompleted = isCompleted;
+        this.status = status != null ? status : DataContract.STATUS_TODO;
         this.projectId = projectId;
         this.createdBy = createdBy;
     }
@@ -43,6 +45,9 @@ public class Task implements Serializable {
 
     public String getTaskName() { return taskName; }
     public void setTaskName(String taskName) { this.taskName = taskName; }
+
+    public String getDescription() { return description; }
+    public void setDescription(String description) { this.description = description; }
 
     public String getPriority() { return priority; }
     public void setPriority(String priority) { this.priority = priority; }
@@ -60,8 +65,12 @@ public class Task implements Serializable {
     public String getDueDate() { return dueDate; }
     public void setDueDate(String dueDate) { this.dueDate = dueDate; }
 
-    public boolean isCompleted() { return isCompleted; }
-    public void setCompleted(boolean completed) { isCompleted = completed; }
+    /** To Do, In Progress or Done (FR-06). */
+    public String getStatus() { return status; }
+    public void setStatus(String status) { this.status = status; }
+
+    /** True when the status is Done; used by the member progress summary. */
+    public boolean isCompleted() { return DataContract.STATUS_DONE.equals(status); }
 
     public String getProjectId() { return projectId; }
     public void setProjectId(String projectId) { this.projectId = projectId; }

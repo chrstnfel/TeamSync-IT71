@@ -31,6 +31,7 @@ import com.example.studentprojecttracker.adapters.TaskAdapter;
 import com.example.studentprojecttracker.models.Project;
 import com.example.studentprojecttracker.models.Task;
 import com.example.studentprojecttracker.models.User;
+import com.example.studentprojecttracker.utils.DataContract;
 import com.example.studentprojecttracker.utils.FirestoreHelper;
 
 import java.util.ArrayList;
@@ -45,6 +46,7 @@ public class TasksFragment extends Fragment {
     private static final String TAG = "TasksFragment";
 
     private Spinner spinnerTaskView;
+    private android.widget.TextView tvStatusSummary;
     private RecyclerView tasksRecyclerView;
     private MaterialButton addTaskButton;
     private TaskAdapter taskAdapter;
@@ -68,7 +70,8 @@ public class TasksFragment extends Fragment {
         super.onCreate(savedInstanceState);
 
         firestoreHelper = new FirestoreHelper();
-        currentUserId = FirebaseAuth.getInstance().getCurrentUser().getEmail();
+        currentUserId = DataContract.normalizeEmail(
+                FirebaseAuth.getInstance().getCurrentUser().getEmail());
 
         // Get project data from MainActivity
         if (getActivity() instanceof MainActivity) {
@@ -172,6 +175,7 @@ public class TasksFragment extends Fragment {
 
     private void initializeViews(View view) {
         spinnerTaskView = view.findViewById(R.id.spinnerTaskView);
+        tvStatusSummary = view.findViewById(R.id.tvStatusSummary);
         tasksRecyclerView = view.findViewById(R.id.tasksRecyclerView);
         addTaskButton = view.findViewById(R.id.addTaskButton);
 
@@ -223,28 +227,16 @@ public class TasksFragment extends Fragment {
         taskAdapter = new TaskAdapter(filteredTasks, currentUserId, isUserLeader,
                 new TaskAdapter.OnTaskInteractionListener() {
                     @Override
-                    public void onTaskChecked(Task task, int position, boolean isChecked) {
+                    public void onStatusChange(Task task, int position, String newStatus) {
                         if (!isAdded() || getContext() == null) return;
 
-                        // Update task completion status
-                        task.setCompleted(isChecked);
-
-                        firestoreHelper.updateTask(task, new FirestoreHelper.OnCompleteListener() {
-                            @Override
-                            public void onComplete(boolean success, String message) {
-                                if (!isAdded() || getContext() == null) return;
-
-                                if (success) {
-                                    Toast.makeText(getContext(),
-                                            isChecked ? "Task completed" : "Task uncompleted",
-                                            Toast.LENGTH_SHORT).show();
-                                } else {
-                                    Toast.makeText(getContext(), "Error: " + message,
-                                            Toast.LENGTH_SHORT).show();
-                                    task.setCompleted(!isChecked); // Revert on error
-                                    taskAdapter.notifyItemChanged(position);
-                                }
-                            }
+                        // T5: status + activity log in one batch. The list updates
+                        // through the real-time listener once the write is confirmed.
+                        firestoreHelper.updateTaskStatus(task, newStatus, (success, message) -> {
+                            if (!isAdded() || getContext() == null) return;
+                            Toast.makeText(getContext(),
+                                    success ? message : "Error: " + message,
+                                    Toast.LENGTH_SHORT).show();
                         });
                     }
 
@@ -260,7 +252,7 @@ public class TasksFragment extends Fragment {
                         progressDialog.setMessage("Deleting task...");
                         progressDialog.show();
 
-                        firestoreHelper.deleteTask(task.getTaskId(), new FirestoreHelper.OnCompleteListener() {
+                        firestoreHelper.deleteTask(task, new FirestoreHelper.OnCompleteListener() {
                             @Override
                             public void onComplete(boolean success, String message) {
                                 if (!isAdded() || getContext() == null) return;
@@ -466,13 +458,26 @@ public class TasksFragment extends Fragment {
         if ("My Tasks".equals(selectedView)) {
             // Show only tasks assigned to current user
             for (Task task : allTasks) {
-                if (currentUserId.equals(task.getAssigneeId())) {
+                if (currentUserId != null
+                        && currentUserId.equals(DataContract.normalizeEmail(task.getAssigneeId()))) {
                     filteredTasks.add(task);
                 }
             }
         } else {
             // Show all tasks
             filteredTasks.addAll(allTasks);
+        }
+
+        // S4 / FR-07: count of the shown tasks by status
+        int todo = 0, inProgress = 0, done = 0;
+        for (Task task : filteredTasks) {
+            if (DataContract.STATUS_DONE.equals(task.getStatus())) done++;
+            else if (DataContract.STATUS_IN_PROGRESS.equals(task.getStatus())) inProgress++;
+            else todo++;
+        }
+        if (tvStatusSummary != null) {
+            tvStatusSummary.setText("To Do: " + todo + "   •   In Progress: " + inProgress
+                    + "   •   Done: " + done);
         }
 
         taskAdapter.notifyDataSetChanged();

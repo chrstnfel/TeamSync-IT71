@@ -19,7 +19,7 @@ Firebase project: `teamsync-it71` (Firestore location asia-southeast1).
 | `memberIds` | Project Member (every student, including the Project Manager) |
 | `mentorIds` | Teacher |
 
-## Collections (increment a)
+## Collections (increments a and b)
 
 | Path | Fields | Written by |
 |---|---|---|
@@ -28,7 +28,7 @@ Firebase project: `teamsync-it71` (Firestore location asia-southeast1).
 | `projects/{projectId}/activityLogs/{logId}` | `logId`, `projectId`, `actorId` (email), `action`, `targetType`, `targetId`, `timestamp` (server time) | Every module, in the same batch as the change |
 | `projects/{projectId}/chats/{messageId}` | as in `ChatMessage` | Project Manager, Project Member |
 | `projects/{projectId}/notes/{noteId}` | as in `Note` | Project Manager, Project Member |
-| `tasks/{taskId}` *(legacy, moves under the project in increment b)* | as in `Task` | Project Manager, Project Member |
+| `projects/{projectId}/tasks/{taskId}` | `taskId`, `projectId`, `title`, `description`, `assignedTo` (email), `dueDate` (timestamp), `status` (`To Do` / `In Progress` / `Done`), `priority` (Low/Medium/High, extra), `createdBy`, `createdAt`, `updatedAt`, `lastOpId` | Project Manager only (read by everyone in the project) |
 | `files/{fileId}` *(legacy, moves under the project in increment c)* | `name`, `url`, `uploadedAt`, `projectId` | Project Manager, Project Member |
 
 ## Atomic record + log (NFR-09)
@@ -44,7 +44,8 @@ change can never be saved without its log entry, and vice versa.
 ## Log actions
 
 `project_created`, `project_updated`, `member_invited`, `teacher_invited`,
-`member_removed`, `leaders_changed` (more are added with each increment).
+`member_removed`, `leaders_changed`, `task_created`, `task_updated`,
+`task_status_changed`, `task_deleted` (more are added with each increment).
 
 ## Storage paths
 

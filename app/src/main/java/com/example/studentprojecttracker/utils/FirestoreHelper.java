@@ -189,9 +189,8 @@ public class FirestoreHelper {
     }
 
     public void deleteProject(String projectId, OnCompleteListener listener) {
-        // Delete all tasks associated with the project first
-        db.collection(COLLECTION_TASKS)
-                .whereEqualTo("projectId", projectId)
+        // Delete the project's tasks first (projects/{projectId}/tasks)
+        tasksOf(projectId)
                 .get()
                 .addOnSuccessListener(querySnapshot -> {
                     for (DocumentSnapshot doc : querySnapshot.getDocuments()) {
@@ -287,85 +286,112 @@ public class FirestoreHelper {
         void onError(String error);
     }
 
+    /** projects/{projectId}/tasks: tasks are stored under their project (Section 4.7). */
+    private com.google.firebase.firestore.CollectionReference tasksOf(String projectId) {
+        return db.collection(COLLECTION_PROJECTS).document(projectId).collection(DataContract.TASKS);
+    }
+
+    /** T4 Create and assign task (UC-05): task + activity log entry in one atomic batch. */
     public void createTask(Task task, OnCompleteListener listener) {
-        Map<String, Object> taskData = new HashMap<>();
-        taskData.put("taskId", task.getTaskId());
-        taskData.put("taskName", task.getTaskName());
-        taskData.put("priority", task.getPriority());
-        taskData.put("assigneeId", task.getAssigneeId());
-        taskData.put("assigneeName", task.getAssigneeName());
-        taskData.put("dueDate", task.getDueDate());
-        taskData.put("isCompleted", task.isCompleted());
-        taskData.put("projectId", task.getProjectId());
-        taskData.put("createdBy", task.getCreatedBy());
-        taskData.put("createdAt", System.currentTimeMillis());
+        String opId = ActivityLogger.newOpId();
 
-        db.collection(COLLECTION_TASKS)
-                .document(task.getTaskId())
-                .set(taskData)
-                .addOnSuccessListener(aVoid -> {
-                    Log.d(TAG, "Task created successfully");
-                    if (listener != null) {
-                        listener.onComplete(true, "Task created successfully");
-                    }
-                })
-                .addOnFailureListener(e -> {
-                    Log.e(TAG, "Error creating task", e);
-                    if (listener != null) {
-                        listener.onComplete(false, e.getMessage());
-                    }
-                });
+        Map<String, Object> taskData = taskFields(task);
+        taskData.put(DataContract.TASK_ID, task.getTaskId());
+        taskData.put(DataContract.TASK_PROJECT_ID, task.getProjectId());
+        taskData.put(DataContract.TASK_STATUS, DataContract.STATUS_TODO);
+        taskData.put(DataContract.TASK_CREATED_BY, DataContract.normalizeEmail(task.getCreatedBy()));
+        taskData.put(DataContract.CREATED_AT, System.currentTimeMillis());
+        taskData.put(DataContract.LAST_OP_ID, opId);
+
+        WriteBatch batch = db.batch();
+        batch.set(tasksOf(task.getProjectId()).document(task.getTaskId()), taskData);
+        ActivityLogger.addToBatch(db, batch, task.getProjectId(), opId,
+                DataContract.ACTION_TASK_CREATED, DataContract.TARGET_TASK, task.getTaskId());
+
+        commit(batch, "Task created successfully", listener);
     }
 
+    /** Edit a task's details (Project Manager), logged as task_updated. */
     public void updateTask(Task task, OnCompleteListener listener) {
+        String opId = ActivityLogger.newOpId();
+
+        Map<String, Object> updates = taskFields(task);
+        updates.put(DataContract.TASK_STATUS, task.getStatus());
+        updates.put(DataContract.UPDATED_AT, System.currentTimeMillis());
+        updates.put(DataContract.LAST_OP_ID, opId);
+
+        WriteBatch batch = db.batch();
+        batch.update(tasksOf(task.getProjectId()).document(task.getTaskId()), updates);
+        ActivityLogger.addToBatch(db, batch, task.getProjectId(), opId,
+                DataContract.ACTION_TASK_UPDATED, DataContract.TARGET_TASK, task.getTaskId());
+
+        commit(batch, "Task updated successfully", listener);
+    }
+
+    /**
+     * T5 Change task status (UC-06): only the Project Manager may do this, which
+     * the Security Rules enforce on the server. Status + log in one batch.
+     */
+    public void updateTaskStatus(Task task, String newStatus, OnCompleteListener listener) {
+        String opId = ActivityLogger.newOpId();
+
         Map<String, Object> updates = new HashMap<>();
-        updates.put("taskName", task.getTaskName());
-        updates.put("priority", task.getPriority());
-        updates.put("assigneeId", task.getAssigneeId());
-        updates.put("assigneeName", task.getAssigneeName());
-        updates.put("dueDate", task.getDueDate());
-        updates.put("isCompleted", task.isCompleted());
-        updates.put("updatedAt", System.currentTimeMillis());
+        updates.put(DataContract.TASK_STATUS, newStatus);
+        updates.put(DataContract.UPDATED_AT, System.currentTimeMillis());
+        updates.put(DataContract.LAST_OP_ID, opId);
 
-        db.collection(COLLECTION_TASKS)
-                .document(task.getTaskId())
-                .update(updates)
-                .addOnSuccessListener(aVoid -> {
-                    Log.d(TAG, "Task updated successfully");
-                    if (listener != null) {
-                        listener.onComplete(true, "Task updated successfully");
-                    }
-                })
-                .addOnFailureListener(e -> {
-                    Log.e(TAG, "Error updating task", e);
-                    if (listener != null) {
-                        listener.onComplete(false, e.getMessage());
-                    }
-                });
+        WriteBatch batch = db.batch();
+        batch.update(tasksOf(task.getProjectId()).document(task.getTaskId()), updates);
+        ActivityLogger.addToBatch(db, batch, task.getProjectId(), opId,
+                DataContract.ACTION_TASK_STATUS_CHANGED, DataContract.TARGET_TASK, task.getTaskId());
+
+        commit(batch, "Status changed to " + newStatus, listener);
     }
 
-    public void deleteTask(String taskId, OnCompleteListener listener) {
-        db.collection(COLLECTION_TASKS)
-                .document(taskId)
-                .delete()
-                .addOnSuccessListener(aVoid -> {
-                    Log.d(TAG, "Task deleted successfully");
-                    if (listener != null) {
-                        listener.onComplete(true, "Task deleted successfully");
-                    }
-                })
-                .addOnFailureListener(e -> {
-                    Log.e(TAG, "Error deleting task", e);
-                    if (listener != null) {
-                        listener.onComplete(false, e.getMessage());
-                    }
-                });
+    /** Delete a task (Project Manager), with its log entry in the same batch. */
+    public void deleteTask(Task task, OnCompleteListener listener) {
+        String opId = ActivityLogger.newOpId();
+
+        WriteBatch batch = db.batch();
+        batch.delete(tasksOf(task.getProjectId()).document(task.getTaskId()));
+        ActivityLogger.addToBatch(db, batch, task.getProjectId(), opId,
+                DataContract.ACTION_TASK_DELETED, DataContract.TARGET_TASK, task.getTaskId());
+
+        commit(batch, "Task deleted successfully", listener);
     }
 
+    /** The fields a Project Manager edits, in data-contract names. */
+    private Map<String, Object> taskFields(Task task) {
+        Map<String, Object> data = new HashMap<>();
+        data.put(DataContract.TASK_TITLE, task.getTaskName());
+        data.put(DataContract.TASK_DESCRIPTION, task.getDescription() != null ? task.getDescription() : "");
+        data.put(DataContract.TASK_PRIORITY, task.getPriority());
+        data.put(DataContract.TASK_ASSIGNED_TO, DataContract.normalizeEmail(task.getAssigneeId()));
+        data.put(DataContract.TASK_DUE_DATE, toTimestamp(task.getDueDate()));
+        return data;
+    }
+
+    private static com.google.firebase.Timestamp toTimestamp(String dueDate) {
+        if (dueDate == null || dueDate.isEmpty()) return null;
+        try {
+            java.util.Date date = new java.text.SimpleDateFormat(
+                    DataContract.DUE_DATE_PATTERN, java.util.Locale.US).parse(dueDate);
+            return date == null ? null : new com.google.firebase.Timestamp(date);
+        } catch (java.text.ParseException e) {
+            Log.w(TAG, "Could not parse due date " + dueDate, e);
+            return null;
+        }
+    }
+
+    private static String fromTimestamp(com.google.firebase.Timestamp ts) {
+        if (ts == null) return "";
+        return new java.text.SimpleDateFormat(DataContract.DUE_DATE_PATTERN, java.util.Locale.US)
+                .format(ts.toDate());
+    }
+
+    /** Real-time task list of one project (FR-07, FR-15); scoped to the opened project. */
     public ListenerRegistration getProjectTasks(String projectId, TaskCallback callback) {
-        return db.collection(COLLECTION_TASKS)
-                .whereEqualTo("projectId", projectId)
-                // Removed orderBy - will add back after creating index
+        return tasksOf(projectId)
                 .addSnapshotListener((querySnapshot, error) -> {
                     if (error != null) {
                         Log.e(TAG, "Error getting tasks", error);
@@ -724,26 +750,17 @@ public class FirestoreHelper {
 
     private Task documentToTask(DocumentSnapshot doc) {
         try {
-            String taskId = doc.getString("taskId");
-            String taskName = doc.getString("taskName");
-            String priority = doc.getString("priority");
-            String assigneeId = doc.getString("assigneeId");
-            String assigneeName = doc.getString("assigneeName");
-            String dueDate = doc.getString("dueDate");
-            Boolean isCompleted = doc.getBoolean("isCompleted");
-            String projectId = doc.getString("projectId");
-            String createdBy = doc.getString("createdBy");
-
             return new Task(
-                    taskId,
-                    taskName,
-                    priority,
-                    assigneeId,
-                    assigneeName,
-                    dueDate,
-                    isCompleted != null && isCompleted,
-                    projectId,
-                    createdBy
+                    doc.getId(),
+                    doc.getString(DataContract.TASK_TITLE),
+                    doc.getString(DataContract.TASK_DESCRIPTION),
+                    doc.getString(DataContract.TASK_PRIORITY),
+                    doc.getString(DataContract.TASK_ASSIGNED_TO),
+                    null, // display name is looked up from users/
+                    fromTimestamp(doc.getTimestamp(DataContract.TASK_DUE_DATE)),
+                    doc.getString(DataContract.TASK_STATUS),
+                    doc.getString(DataContract.TASK_PROJECT_ID),
+                    doc.getString(DataContract.TASK_CREATED_BY)
             );
         } catch (Exception e) {
             Log.e(TAG, "Error parsing task document", e);

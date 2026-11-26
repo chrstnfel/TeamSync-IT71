@@ -15,19 +15,12 @@
         android:padding="12dp"
         android:gravity="center_vertical">
 
-        <!-- Checkbox -->
-        <CheckBox
-            android:id="@+id/taskCheckbox"
-            android:layout_width="wrap_content"
-            android:layout_height="wrap_content"
-            android:buttonTint="@color/primary" />
-
         <!-- Task Details -->
         <LinearLayout
             android:layout_width="0dp"
             android:layout_height="wrap_content"
             android:layout_weight="1"
-            android:layout_marginStart="12dp"
+            android:layout_marginStart="4dp"
             android:orientation="vertical">
 
             <TextView
@@ -72,6 +65,23 @@
                 android:textSize="12sp"
                 android:textColor="@color/text_secondary" />
         </LinearLayout>
+
+        <!-- Status badge (FR-06): To Do / In Progress / Done.
+             Tappable only for the Project Manager. -->
+        <TextView
+            android:id="@+id/tvStatus"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_marginEnd="8dp"
+            android:background="@drawable/badge_todo"
+            android:paddingStart="10dp"
+            android:paddingEnd="10dp"
+            android:paddingTop="6dp"
+            android:paddingBottom="6dp"
+            android:text="To Do"
+            android:textColor="@color/white"
+            android:textSize="12sp"
+            android:textStyle="bold" />
 
         <!-- Menu Button (for leaders) -->
         <ImageView

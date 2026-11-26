@@ -66,9 +66,35 @@ public final class DataContract {
     public static final String ACTION_MEMBER_REMOVED = "member_removed";
     public static final String ACTION_LEADERS_CHANGED = "leaders_changed";
 
+    public static final String ACTION_TASK_CREATED = "task_created";
+    public static final String ACTION_TASK_UPDATED = "task_updated";
+    public static final String ACTION_TASK_STATUS_CHANGED = "task_status_changed";
+    public static final String ACTION_TASK_DELETED = "task_deleted";
+
     // ---------- Log target types ----------
     public static final String TARGET_PROJECT = "project";
     public static final String TARGET_MEMBER = "member";
+    public static final String TARGET_TASK = "task";
+
+    // ---------- projects/{projectId}/tasks/{taskId} (M3) ----------
+    public static final String TASK_ID = "taskId";
+    public static final String TASK_PROJECT_ID = "projectId";
+    public static final String TASK_TITLE = "title";
+    public static final String TASK_DESCRIPTION = "description";
+    public static final String TASK_ASSIGNED_TO = "assignedTo";   // email of the member
+    public static final String TASK_DUE_DATE = "dueDate";         // Firestore timestamp
+    public static final String TASK_STATUS = "status";
+    public static final String TASK_PRIORITY = "priority";        // Low, Medium, High (extra)
+    public static final String TASK_CREATED_BY = "createdBy";     // email of the Project Manager
+
+    // ---------- Task status values (FR-06) ----------
+    public static final String STATUS_TODO = "To Do";
+    public static final String STATUS_IN_PROGRESS = "In Progress";
+    public static final String STATUS_DONE = "Done";
+    public static final String[] TASK_STATUSES = {STATUS_TODO, STATUS_IN_PROGRESS, STATUS_DONE};
+
+    /** Display format of due dates in the app; Firestore stores a timestamp. */
+    public static final String DUE_DATE_PATTERN = "M/d/yyyy";
 
     // ---------- Per-project roles (Section 4.2.1) ----------
     public static final String ROLE_PROJECT_MANAGER = "manager"; // email in leaderIds

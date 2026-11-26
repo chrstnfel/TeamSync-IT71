@@ -36,6 +36,19 @@
 
     </LinearLayout>
 
+    <!-- Count of tasks by status (S4, FR-07) -->
+    <TextView
+        android:id="@+id/tvStatusSummary"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:paddingStart="16dp"
+        android:paddingEnd="16dp"
+        android:paddingTop="8dp"
+        android:text="To Do: 0   •   In Progress: 0   •   Done: 0"
+        android:textColor="@color/text_secondary"
+        android:textSize="13sp"
+        android:textStyle="bold" />
+
     <!-- Tasks List -->
     <androidx.recyclerview.widget.RecyclerView
         android:id="@+id/tasksRecyclerView"

@@ -37,6 +37,15 @@ service cloud.firestore {
     function logWrittenWith(projectId) {
       return existsAfter(/databases/$(database)/documents/projects/$(projectId)/activityLogs/$(request.resource.data.lastOpId));
     }
+    // FR-05/FR-06: a task has a title, belongs to this project, is assigned to
+    // a student of the project, and has one of the three statuses.
+    function validTask(t, projectId) {
+      return t.projectId == projectId
+        && t.title is string && t.title.size() > 0
+        && t.status in ['To Do', 'In Progress', 'Done']
+        && (t.assignedTo in projectData(projectId).memberIds
+            || t.assignedTo in projectData(projectId).leaderIds);
+    }
 
     // ---------- users/{uid} (M1) ----------
     // Any signed-in user can read profiles (needed to show teammates' names and
@@ -86,6 +95,31 @@ service cloud.firestore {
         allow update, delete: if false;
       }
 
+      // ---------- tasks (M3) ----------
+      // Everyone in the project can read tasks (task list, member progress,
+      // teacher overview). Only the Project Manager creates, edits, marks
+      // status and deletes (FR-05, FR-06, NFR-07). Every write is logged.
+      match /tasks/{taskId} {
+        allow read: if signedIn() && inProject(projectData(projectId));
+
+        allow create: if signedIn()
+          && isManagerOf(projectData(projectId))
+          && validTask(request.resource.data, projectId)
+          && request.resource.data.taskId == taskId
+          && request.resource.data.status == 'To Do'
+          && request.resource.data.createdBy == me()
+          && logWrittenWith(projectId);
+
+        allow update: if signedIn()
+          && isManagerOf(projectData(projectId))
+          && validTask(request.resource.data, projectId)
+          && request.resource.data.createdBy == resource.data.createdBy
+          && request.resource.data.lastOpId != resource.data.get('lastOpId', '')
+          && logWrittenWith(projectId);
+
+        allow delete: if signedIn() && isManagerOf(projectData(projectId));
+      }
+
       // ---------- chats (M4; renamed to messages in increment c) ----------
       match /chats/{messageId} {
         allow read, create: if signedIn() && isStudentOf(projectData(projectId));
@@ -98,19 +132,9 @@ service cloud.firestore {
       }
     }
 
-    // ---------- LEGACY top-level collections ----------
-    // Used by the current app until tasks move to projects/{id}/tasks
-    // (increment b) and files to projects/{id}/files (increment c).
-    // Remove these blocks after those increments.
-    match /tasks/{taskId} {
-      allow read: if signedIn() && inProject(projectData(resource.data.projectId));
-      allow create: if signedIn() && isStudentOf(projectData(request.resource.data.projectId));
-      allow update: if signedIn()
-        && request.resource.data.projectId == resource.data.projectId
-        && isStudentOf(projectData(resource.data.projectId));
-      allow delete: if signedIn() && isManagerOf(projectData(resource.data.projectId));
-    }
-
+    // ---------- LEGACY top-level collection ----------
+    // Used by the current FilesFragment until files move to
+    // projects/{id}/files in increment (c). Remove this block then.
     match /files/{fileId} {
       allow read: if signedIn() && inProject(projectData(resource.data.projectId));
       allow create: if signedIn() && isStudentOf(projectData(request.resource.data.projectId));
