@@ -1,0 +1,120 @@
+rules_version = '2';
+
+// TEAMSYNC Firestore Security Rules (C6; Revised paper Sections 4.3.5 and 4.7).
+// Users are identified by their login email (lower-case), which is compared
+// with the email lists on the project document:
+//   leaderIds = Project Manager, memberIds = students, mentorIds = Teacher.
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    // ---------- Helpers ----------
+    function signedIn() {
+      return request.auth != null && request.auth.token.email != null;
+    }
+    function me() {
+      return request.auth.token.email.lower();
+    }
+    function isManagerOf(p) {
+      return me() in p.leaderIds;
+    }
+    function isStudentOf(p) {          // Project Manager or Project Member
+      return me() in p.memberIds || me() in p.leaderIds;
+    }
+    function isTeacherOf(p) {
+      return me() in p.mentorIds;
+    }
+    function inProject(p) {
+      return isStudentOf(p) || isTeacherOf(p);
+    }
+    function projectData(projectId) {
+      return get(/databases/$(database)/documents/projects/$(projectId)).data;
+    }
+    function projectAfter(projectId) {
+      return getAfter(/databases/$(database)/documents/projects/$(projectId)).data;
+    }
+    // NFR-09: the change must be committed in the same batch as its activity
+    // log entry, whose ID the client stores in lastOpId.
+    function logWrittenWith(projectId) {
+      return existsAfter(/databases/$(database)/documents/projects/$(projectId)/activityLogs/$(request.resource.data.lastOpId));
+    }
+
+    // ---------- users/{uid} (M1) ----------
+    // Any signed-in user can read profiles (needed to show teammates' names and
+    // to invite by email); a user can only write their own profile.
+    match /users/{uid} {
+      allow read: if signedIn();
+      allow create, update: if signedIn()
+        && request.auth.uid == uid
+        && request.resource.data.email == me();
+      allow delete: if false;
+    }
+
+    // ---------- projects/{projectId} (M2) ----------
+    match /projects/{projectId} {
+      // FR-14: users only see projects they belong to.
+      allow read: if signedIn() && inProject(resource.data);
+
+      // T2: the creator becomes the only Project Manager.
+      allow create: if signedIn()
+        && request.resource.data.projectId == projectId
+        && request.resource.data.creatorId == me()
+        && request.resource.data.leaderIds == [me()]
+        && me() in request.resource.data.memberIds
+        && logWrittenWith(projectId);
+
+      // Edit details, invite members/teachers, change leaders (Project Manager only).
+      allow update: if signedIn()
+        && isManagerOf(resource.data)
+        && request.resource.data.creatorId == resource.data.creatorId
+        && request.resource.data.projectId == resource.data.projectId
+        && request.resource.data.lastOpId != resource.data.get('lastOpId', '')
+        && logWrittenWith(projectId);
+
+      allow delete: if signedIn() && isManagerOf(resource.data);
+
+      // ---------- activityLogs (M8) ----------
+      // Read by the Project Manager and the Teacher. Never edited or deleted.
+      match /activityLogs/{logId} {
+        allow read: if signedIn()
+          && (isManagerOf(projectData(projectId)) || isTeacherOf(projectData(projectId)));
+        allow create: if signedIn()
+          && inProject(projectAfter(projectId))
+          && request.resource.data.logId == logId
+          && request.resource.data.projectId == projectId
+          && request.resource.data.actorId == me()
+          && request.resource.data.timestamp == request.time;
+        allow update, delete: if false;
+      }
+
+      // ---------- chats (M4; renamed to messages in increment c) ----------
+      match /chats/{messageId} {
+        allow read, create: if signedIn() && isStudentOf(projectData(projectId));
+        allow update, delete: if false;
+      }
+
+      // ---------- notes (extra feature kept from the 3rd-year app) ----------
+      match /notes/{noteId} {
+        allow read, write: if signedIn() && isStudentOf(projectData(projectId));
+      }
+    }
+
+    // ---------- LEGACY top-level collections ----------
+    // Used by the current app until tasks move to projects/{id}/tasks
+    // (increment b) and files to projects/{id}/files (increment c).
+    // Remove these blocks after those increments.
+    match /tasks/{taskId} {
+      allow read: if signedIn() && inProject(projectData(resource.data.projectId));
+      allow create: if signedIn() && isStudentOf(projectData(request.resource.data.projectId));
+      allow update: if signedIn()
+        && request.resource.data.projectId == resource.data.projectId
+        && isStudentOf(projectData(resource.data.projectId));
+      allow delete: if signedIn() && isManagerOf(projectData(resource.data.projectId));
+    }
+
+    match /files/{fileId} {
+      allow read: if signedIn() && inProject(projectData(resource.data.projectId));
+      allow create: if signedIn() && isStudentOf(projectData(request.resource.data.projectId));
+      allow update, delete: if false;
+    }
+  }
+}

@@ -20,7 +20,8 @@ public class SessionManager {
 
     public void createLoginSession(String email) {
         editor.putBoolean(KEY_IS_LOGGED_IN, true);
-        editor.putString(KEY_EMAIL, email);
+        // Lower-case so it matches the member lists and request.auth.token.email
+        editor.putString(KEY_EMAIL, DataContract.normalizeEmail(email));
         editor.apply();
     }
 
@@ -29,7 +30,32 @@ public class SessionManager {
     }
 
     public String getUserEmail() {
-        return pref.getString(KEY_EMAIL, null);
+        return DataContract.normalizeEmail(pref.getString(KEY_EMAIL, null));
+    }
+
+    /**
+     * Role of the signed-in user in one project (Section 4.4.3): a user's role
+     * applies per project, not per account.
+     */
+    public String getProjectRole(com.example.studentprojecttracker.models.Project project) {
+        String email = getUserEmail();
+        if (project == null || email == null) return DataContract.ROLE_NONE;
+        if (containsEmail(project.getLeaderIds(), email)) return DataContract.ROLE_PROJECT_MANAGER;
+        if (containsEmail(project.getMentorIds(), email)) return DataContract.ROLE_TEACHER;
+        if (containsEmail(project.getMemberIds(), email)) return DataContract.ROLE_PROJECT_MEMBER;
+        return DataContract.ROLE_NONE;
+    }
+
+    public boolean isProjectManager(com.example.studentprojecttracker.models.Project project) {
+        return DataContract.ROLE_PROJECT_MANAGER.equals(getProjectRole(project));
+    }
+
+    private static boolean containsEmail(java.util.List<String> emails, String email) {
+        if (emails == null) return false;
+        for (String e : emails) {
+            if (email.equals(DataContract.normalizeEmail(e))) return true;
+        }
+        return false;
     }
 
     public void logout() {

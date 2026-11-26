@@ -75,6 +75,10 @@ public class LoginActivity extends AppCompatActivity {
                         FirebaseUser user = mAuth.getCurrentUser();
                         if (user != null) {
                             sessionManager.createLoginSession(user.getEmail());
+                            sessionManager.saveUserId(user.getUid());
+                            // T1: accounts made before this version get users/{uid} now
+                            new com.example.studentprojecttracker.utils.FirestoreHelper()
+                                    .ensureOwnProfile(user.getDisplayName());
                             Toast.makeText(LoginActivity.this, 
                                 getString(R.string.login_success), 
                                 Toast.LENGTH_SHORT).show();

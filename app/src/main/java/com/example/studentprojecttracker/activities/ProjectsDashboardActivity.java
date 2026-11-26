@@ -26,6 +26,7 @@ import com.google.firebase.firestore.ListenerRegistration;
 import com.example.studentprojecttracker.R;
 import com.example.studentprojecttracker.adapters.ProjectAdapter;
 import com.example.studentprojecttracker.models.Project;
+import com.example.studentprojecttracker.utils.DataContract;
 import com.example.studentprojecttracker.utils.FirestoreHelper;
 import com.example.studentprojecttracker.utils.SessionManager;
 
@@ -320,7 +321,8 @@ public class ProjectsDashboardActivity extends AppCompatActivity implements Proj
     public void onProjectMenuClick(Project project, View view) {
         PopupMenu popup = new PopupMenu(this, view);
 
-        if (isAdvisorMode) {
+        // Section 4.4.3: only the Project Manager sees edit, invite and delete.
+        if (isAdvisorMode || !sessionManager.isProjectManager(project)) {
             popup.getMenu().add("View Details");
         } else {
             popup.getMenu().add("Edit Project");
@@ -367,11 +369,11 @@ public class ProjectsDashboardActivity extends AppCompatActivity implements Proj
         dialogView.findViewById(R.id.btnCancel).setOnClickListener(v -> dialog.dismiss());
 
         dialogView.findViewById(R.id.btnAdd).setOnClickListener(v -> {
-            String email = etMemberEmail.getText().toString().trim();
+            String email = DataContract.normalizeEmail(etMemberEmail.getText().toString());
             String name = etMemberName.getText().toString().trim();
 
-            if (email.isEmpty()) {
-                etMemberEmail.setError("Email is required");
+            if (email.isEmpty() || !android.util.Patterns.EMAIL_ADDRESS.matcher(email).matches()) {
+                etMemberEmail.setError("Enter a valid email");
                 etMemberEmail.requestFocus();
                 return;
             }
@@ -399,7 +401,9 @@ public class ProjectsDashboardActivity extends AppCompatActivity implements Proj
             Log.d("AddMember", "Adding member: " + email + " (" + name + ")");
             Log.d("AddMember", "Updated memberIds: " + memberIds.toString());
 
-            firestoreHelper.updateProject(project, new FirestoreHelper.OnCompleteListener() {
+            // T3 Invite member: project update + activity log entry in one atomic batch
+            firestoreHelper.updateProject(project, DataContract.ACTION_MEMBER_INVITED,
+                    DataContract.TARGET_MEMBER, email, new FirestoreHelper.OnCompleteListener() {
                 @Override
                 public void onComplete(boolean success, String message) {
                     if (progressDialog.isShowing()) {
@@ -409,10 +413,12 @@ public class ProjectsDashboardActivity extends AppCompatActivity implements Proj
                         Toast.makeText(ProjectsDashboardActivity.this,
                                 name + " added to project", Toast.LENGTH_SHORT).show();
                         dialog.dismiss();
-
-                        // Create user profile in Firestore if doesn't exist
-                        createUserProfileIfNotExists(email, name);
+                        // The invitee's users/{uid} profile is created by their own
+                        // app when they sign up or log in (Security Rules allow a
+                        // user to write only their own profile).
                     } else {
+                        // Nothing was saved: undo the local change
+                        project.getMemberIds().remove(email);
                         Toast.makeText(ProjectsDashboardActivity.this,
                                 "Error: " + message, Toast.LENGTH_SHORT).show();
                         Log.e("AddMember", "Error adding member: " + message);
@@ -422,44 +428,6 @@ public class ProjectsDashboardActivity extends AppCompatActivity implements Proj
         });
 
         dialog.show();
-    }
-
-    /**
-     * Create a basic user profile in Firestore if it doesn't exist
-     * This ensures the user can be found when loading team members
-     */
-    private void createUserProfileIfNotExists(String email, String name) {
-        // First check if user exists
-        firestoreHelper.getUserProfile(email, new FirestoreHelper.UserCallback() {
-            @Override
-            public void onSuccess(User user) {
-                // User already exists, do nothing
-                Log.d("CreateUser", "User profile already exists: " + email);
-            }
-
-            @Override
-            public void onError(String error) {
-                // User doesn't exist, create basic profile
-                Log.d("CreateUser", "Creating user profile for: " + email);
-
-                User newUser = new User();
-                newUser.setUserId(email); // Using email as userId for now
-                newUser.setName(name);
-                newUser.setEmail(email);
-                newUser.setRole("member");
-
-                firestoreHelper.saveUserProfile(newUser, new FirestoreHelper.OnCompleteListener() {
-                    @Override
-                    public void onComplete(boolean success, String message) {
-                        if (success) {
-                            Log.d("CreateUser", "User profile created successfully");
-                        } else {
-                            Log.e("CreateUser", "Failed to create user profile: " + message);
-                        }
-                    }
-                });
-            }
-        });
     }
 
     private void showAddMentorDialog(Project project) {
@@ -480,11 +448,11 @@ public class ProjectsDashboardActivity extends AppCompatActivity implements Proj
         dialogView.findViewById(R.id.btnCancel).setOnClickListener(v -> dialog.dismiss());
 
         btnAdd.setOnClickListener(v -> {
-            String email = etMemberEmail.getText().toString().trim();
+            String email = DataContract.normalizeEmail(etMemberEmail.getText().toString());
             String name = etMemberName.getText().toString().trim();
 
-            if (email.isEmpty()) {
-                etMemberEmail.setError("Email is required");
+            if (email.isEmpty() || !android.util.Patterns.EMAIL_ADDRESS.matcher(email).matches()) {
+                etMemberEmail.setError("Enter a valid email");
                 etMemberEmail.requestFocus();
                 return;
             }
@@ -511,7 +479,9 @@ public class ProjectsDashboardActivity extends AppCompatActivity implements Proj
 
             Log.d("AddMentor", "Adding mentor: " + email + " (" + name + ")");
 
-            firestoreHelper.updateProject(project, new FirestoreHelper.OnCompleteListener() {
+            // T3 Invite teacher: project update + activity log entry in one atomic batch
+            firestoreHelper.updateProject(project, DataContract.ACTION_TEACHER_INVITED,
+                    DataContract.TARGET_MEMBER, email, new FirestoreHelper.OnCompleteListener() {
                 @Override
                 public void onComplete(boolean success, String message) {
                     if (progressDialog.isShowing()) {
@@ -521,10 +491,9 @@ public class ProjectsDashboardActivity extends AppCompatActivity implements Proj
                         Toast.makeText(ProjectsDashboardActivity.this,
                                 name + " added as mentor", Toast.LENGTH_SHORT).show();
                         dialog.dismiss();
-
-                        // Create user profile if doesn't exist
-                        createUserProfileIfNotExists(email, name);
                     } else {
+                        // Nothing was saved: undo the local change
+                        project.getMentorIds().remove(email);
                         Toast.makeText(ProjectsDashboardActivity.this,
                                 "Error: " + message, Toast.LENGTH_SHORT).show();
                         Log.e("AddMentor", "Error adding mentor: " + message);

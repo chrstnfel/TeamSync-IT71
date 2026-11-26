@@ -1,13 +1,13 @@
 {
   "project_info": {
-    "project_number": "945185033406",
-    "project_id": "teamsync-39ff9",
-    "storage_bucket": "teamsync-39ff9.firebasestorage.app"
+    "project_number": "258375171826",
+    "project_id": "teamsync-it71",
+    "storage_bucket": "teamsync-it71.firebasestorage.app"
   },
   "client": [
     {
       "client_info": {
-        "mobilesdk_app_id": "1:945185033406:android:b11e0251ea5de65085a2ef",
+        "mobilesdk_app_id": "1:258375171826:android:821c71c8aa81e1af65da6b",
         "android_client_info": {
           "package_name": "com.example.studentprojecttracker"
         }
@@ -15,26 +15,7 @@
       "oauth_client": [],
       "api_key": [
         {
-          "current_key": "AIzaSyBV6cRnh4Nveyb7Z2Kd9707JCfZwD2ycpw"
-        }
-      ],
-      "services": {
-        "appinvite_service": {
-          "other_platform_oauth_client": []
-        }
-      }
-    },
-    {
-      "client_info": {
-        "mobilesdk_app_id": "1:945185033406:android:af639f933bd34d9e85a2ef",
-        "android_client_info": {
-          "package_name": "com.student.teamsync"
-        }
-      },
-      "oauth_client": [],
-      "api_key": [
-        {
-          "current_key": "AIzaSyBV6cRnh4Nveyb7Z2Kd9707JCfZwD2ycpw"
+          "current_key": "AIzaSyDR7RDAX_54TmxRrvN6M0QJVGQDzNXzDKo"
         }
       ],
       "services": {

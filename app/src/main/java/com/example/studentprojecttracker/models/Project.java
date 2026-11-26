@@ -35,14 +35,22 @@ public class Project implements Serializable {
         this.progressPercentage = 0;
     }
 
-    // Check if user is a leader
+    // Check if user is a leader (Project Manager). Emails are compared case-insensitively.
     public boolean isLeader(String userId) {
-        return leaderIds != null && leaderIds.contains(userId);
+        return containsIgnoreCase(leaderIds, userId);
     }
 
     // Check if user is a member
     public boolean isMember(String userId) {
-        return memberIds != null && memberIds.contains(userId);
+        return containsIgnoreCase(memberIds, userId);
+    }
+
+    private static boolean containsIgnoreCase(List<String> ids, String id) {
+        if (ids == null || id == null) return false;
+        for (String s : ids) {
+            if (s != null && s.trim().equalsIgnoreCase(id.trim())) return true;
+        }
+        return false;
     }
 
     // Getters and Setters

@@ -13,6 +13,7 @@ import com.google.firebase.auth.FirebaseAuth;
 import com.google.firebase.auth.FirebaseUser;
 import com.google.firebase.auth.UserProfileChangeRequest;
 import com.example.studentprojecttracker.R;
+import com.example.studentprojecttracker.utils.FirestoreHelper;
 import com.example.studentprojecttracker.utils.SessionManager;
 
 public class SignUpActivity extends AppCompatActivity {
@@ -79,6 +80,9 @@ public class SignUpActivity extends AppCompatActivity {
 
                             user.updateProfile(profileUpdates).addOnCompleteListener(updateTask -> {
                                 sessionManager.createLoginSession(email);
+                                sessionManager.saveUserId(user.getUid());
+                                // T1: create users/{uid} so teammates can find this account
+                                new FirestoreHelper().ensureOwnProfile(name);
 
                                 // First time user - go to role selection
                                 Intent intent = new Intent(SignUpActivity.this, RoleSelectionActivity.class);

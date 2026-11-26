@@ -1,0 +1,54 @@
+rules_version = '2';
+
+// TEAMSYNC Cloud Storage Security Rules (C6 guarding C7; Revised paper 4.3.5).
+// Membership is read from the project document in Cloud Firestore.
+service firebase.storage {
+  match /b/{bucket}/o {
+
+    function signedIn() {
+      return request.auth != null && request.auth.token.email != null;
+    }
+    function me() {
+      return request.auth.token.email.lower();
+    }
+    function project(projectId) {
+      return firestore.get(/databases/(default)/documents/projects/$(projectId)).data;
+    }
+    function isStudentOf(projectId) {
+      return me() in project(projectId).memberIds || me() in project(projectId).leaderIds;
+    }
+    function inProject(projectId) {
+      return isStudentOf(projectId) || me() in project(projectId).mentorIds;
+    }
+    // NFR-06 / FR-09: files are limited to 25 MB.
+    function within25MB() {
+      return request.resource.size <= 25 * 1024 * 1024;
+    }
+
+    // M5 File Sharing (target path from increment c):
+    // projects/{projectId}/files/{fileId}/{fileName}
+    match /projects/{projectId}/files/{fileId}/{fileName} {
+      allow read: if signedIn() && inProject(projectId);
+      allow create: if signedIn() && isStudentOf(projectId) && within25MB();
+      // Cleanup of an abandoned upload (Section 4.3.4)
+      allow delete: if signedIn() && isStudentOf(projectId);
+      allow update: if false;
+    }
+
+    // Profile pictures: users/{uid}.jpg written only by that user.
+    match /profile_images/{fileName} {
+      allow read: if signedIn();
+      allow write: if signedIn()
+        && fileName == request.auth.uid + '.jpg'
+        && request.resource.size <= 5 * 1024 * 1024
+        && request.resource.contentType.matches('image/.*');
+    }
+
+    // LEGACY path used by the current FilesFragment until increment (c).
+    match /project_files/{fileName} {
+      allow read: if signedIn();
+      allow create: if signedIn() && within25MB();
+      allow update, delete: if false;
+    }
+  }
+}
