@@ -265,8 +265,11 @@ function tasksTab({ body, getProject, isManager, add }) {
       `To Do: ${count(C.STATUS_TODO)} • In Progress: ${count(C.STATUS_IN_PROGRESS)} • Done: ${count(C.STATUS_DONE)}`;
 
     const box = body.querySelector("#tasks");
+    const gen = String(Number(box.dataset.gen || 0) + 1);
+    box.dataset.gen = gen;
     if (!shown.length) { box.innerHTML = `<p class="empty">No tasks here.</p>`; return; }
     const names = await Promise.all(shown.map((t) => api.nameOf(t.assignedTo)));
+    if (box.dataset.gen !== gen) return;   // a newer snapshot has been drawn
     box.innerHTML = shown.map((t, i) => `
       <div class="card task ${t.status === C.STATUS_DONE ? "isdone" : ""}">
         <div class="info">
@@ -447,6 +450,10 @@ function progressTab({ body, getProject, isManager, add }) {
 }
 
 async function renderMemberProgress(box, project, tasks) {
+  // Names are looked up asynchronously, so an older task snapshot could finish
+  // after a newer one and overwrite it. Only the latest render may draw.
+  const gen = String(Number(box.dataset.gen || 0) + 1);
+  box.dataset.gen = gen;
   const members = (project.memberIds || []).map(normalizeEmail);
   const rows = await Promise.all(members.map(async (m) => {
     const mine = tasks.filter((t) => normalizeEmail(t.assignedTo) === m);
@@ -457,6 +464,7 @@ async function renderMemberProgress(box, project, tasks) {
     return { name: await api.nameOf(m), email: m, total: mine.length, todo: by(C.STATUS_TODO),
       prog: by(C.STATUS_IN_PROGRESS), done, pct, status };
   }));
+  if (box.dataset.gen !== gen) return;   // a newer snapshot has been drawn
   box.innerHTML = rows.map((r) => `
     <div class="card">
       <div class="row spread">

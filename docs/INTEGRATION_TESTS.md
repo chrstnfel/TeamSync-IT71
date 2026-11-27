@@ -37,19 +37,19 @@ Use only these test accounts. Their passwords are kept by the tester and are not
 
 | Test | Requirement | Status |
 |---|---|---|
-| IT-01 Cross-platform task status | FR-06, FR-07, FR-10, FR-11, FR-15 | 🟡 |
-| IT-02 Role-based access | FR-01, FR-14, NFR-03 | 🟡 |
-| IT-03 File upload and download across clients | FR-09, FR-12 | ⬜ |
-| IT-04 Task update fails if its log fails | FR-06, FR-12, NFR-09 | ⬜ |
-| IT-05 File record failure and recovery | FR-09, FR-12, NFR-09 | ⬜ |
-| IT-06 Connection lost during an update | FR-15, NFR-02, NFR-04 | ⬜ |
+| IT-01 Cross-platform task status | FR-06, FR-07, FR-10, FR-11, FR-15 | ✅ |
+| IT-02 Role-based access | FR-01, FR-14, NFR-03 | ✅ |
+| IT-03 File upload and download across clients | FR-09, FR-12 | ✅ |
+| IT-04 Task update fails if its log fails | FR-06, FR-12, NFR-09 | ✅ |
+| IT-05 File record failure and recovery | FR-09, FR-12, NFR-09 | ✅ |
+| IT-06 Connection lost during an update | FR-15, NFR-02, NFR-04 | ✅ |
 | IT-07 Chat message and teacher feedback | FR-08, FR-11, FR-12 | ✅ |
-| IT-08 Deadline reminders | FR-13 | 🟡 |
-| IT-09 Sync time under normal/slow connection | NFR-02 | ⬜ |
+| IT-08 Deadline reminders | FR-13 | ✅ |
+| IT-09 Sync time under normal/slow connection | NFR-02 | ✅ |
 
 ---
 
-## IT-01 Cross-platform task status (FR-06, FR-07, FR-10, FR-11, FR-15) 🟡
+## IT-01 Cross-platform task status (FR-06, FR-07, FR-10, FR-11, FR-15) ✅
 
 **Procedure (paper):** Change a task status on Android; observe the web client and the
 invited teacher view. Repeat from the web.
@@ -65,14 +65,15 @@ status and counts without a manual refresh.
 | PM marks it Done; Team tab updates | ✅ | Test Member card: Done 1, 100%, "Ahead" | Phone screenshot (Team tab) |
 | Teacher view shows the same counts | ✅ | 1 task, 1 completed, Test Member 1/1 | Phone screenshot (teacher view) |
 | Chat sent on one client appears on the other | ✅ | Same messages, order and sender alignment on web and Android | Web + phone screenshots |
-| **To do:** change a status **on the web** (dropdown) and watch the phone update without refreshing | ⬜ | | |
-| **To do:** with the teacher view open on the web, change a status on the phone | ⬜ | | |
+| Status changed **on the web** (dropdown) while the phone shows Tasks | ✅ | Phone badge updated by itself, no refresh | Tester confirmation |
+| Teacher view open on the web (incognito, teacher account); status changed on the phone | ✅ | Teacher counts updated by themselves | Tester confirmation |
+| Final state compared: Android (PM) and web (Test Member) | ✅ | Both show To Do 1 · In Progress 0 · Done 2 with the same three tasks | Phone + web screenshots |
 
-**Pass/fail:** ________ **Tester:** ________ **Date:** ________
+**Pass/fail:** ✅ Pass **Tester:** ________ **Date:** Nov 26-27, 2026
 
 ---
 
-## IT-02 Role-based access (FR-01, FR-14, NFR-03) 🟡
+## IT-02 Role-based access (FR-01, FR-14, NFR-03) ✅
 
 **Procedure (paper):** Attempt reads and writes as manager, member, invited teacher and an
 unrelated account.
@@ -86,29 +87,29 @@ unrelated account.
 | Member's Team tab has no promote/remove buttons | ✅ | None shown | Phone screenshot |
 | Invite is logged (`member_invited`) | ✅ | 2nd activity log entry | Firestore screenshot |
 | Teacher can post feedback | ✅ | Saved, `comment_posted` logged | Firestore screenshot |
-| **To do:** log in as `outsider.test@teamsync.test` | ⬜ | Expected: "SIA" does **not** appear | |
-| **To do (server side):** Rules Playground, see below | ⬜ | | |
+| Registered and logged in as `outsider.test@teamsync.test` (web) | ✅ | Empty dashboard; "SIA" does **not** appear | Tester confirmation, Nov 27 |
+| Server side: Rules Playground, see below | ✅ | All six checks gave the expected result | Tester confirmation, Nov 27 |
 
 **Server-side check with the Rules Playground** (Firebase console → Firestore → Rules → *Rules
 Playground*). The app hides forbidden buttons, so this proves the **server** also refuses:
 
-| # | Simulate | Location | Authenticated as (`email` in token) | Expected |
-|---|---|---|---|---|
-| a | `update` | `projects/<SIA id>/tasks/<task id>` | `member.test@teamsync.test` | **Denied** (only the PM marks status) |
-| b | `get` | `projects/<SIA id>` | `outsider.test@teamsync.test` | **Denied** (not in the project) |
-| c | `create` | `projects/<SIA id>/comments/x` | `member.test@teamsync.test` | **Denied** (only a teacher comments) |
-| d | `get` | `projects/<SIA id>/messages/<msg id>` | `teacher.test@teamsync.test` | **Denied** (teachers have no chat access, 4.7) |
-| e | `get` | `projects/<SIA id>/tasks/<task id>` | `teacher.test@teamsync.test` | **Allowed** (teacher reads progress) |
-| f | `update` / `delete` | `projects/<SIA id>/activityLogs/<log id>` | the PM's email | **Denied** (logs are never edited) |
+| # | Simulate | Location | Authenticated as (`email` in token) | Expected | Actual |
+|---|---|---|---|---|---|
+| a | `update` | `projects/<SIA id>/tasks/<task id>` | `member.test@teamsync.test` | **Denied** (only the PM marks status) | ✅ Denied |
+| b | `get` | `projects/<SIA id>` | `outsider.test@teamsync.test` | **Denied** (not in the project) | ✅ Denied |
+| c | `create` | `projects/<SIA id>/comments/x` | `member.test@teamsync.test` | **Denied** (only a teacher comments) | ✅ Denied |
+| d | `get` | `projects/<SIA id>/messages/<msg id>` | `teacher.test@teamsync.test` | **Denied** (teachers have no chat access, 4.7) | ✅ Denied |
+| e | `get` | `projects/<SIA id>/tasks/<task id>` | `teacher.test@teamsync.test` | **Allowed** (teacher reads progress) | ✅ Allowed |
+| f | `delete` | `projects/<SIA id>/activityLogs/<log id>` | the PM's email | **Denied** (logs are never edited) | ✅ Denied |
 
 In the Playground, tick **Authenticated**, choose provider **password**, and set the token's
 `email` field to the address in the table. Screenshot each result.
 
-**Pass/fail:** ________ **Tester:** ________ **Date:** ________
+**Pass/fail:** ✅ Pass **Tester:** ________ **Date:** Nov 26-27, 2026
 
 ---
 
-## IT-03 File upload and download across clients (FR-09, FR-12) ⬜
+## IT-03 File upload and download across clients (FR-09, FR-12) ✅
 
 **Note:** Cloud Storage for Firebase needs the billing-enabled Blaze plan (Chapter I
 limitations, Google n.d.-b), which the group could not use. Uploaded files (up to **5 MB**)
@@ -122,18 +123,20 @@ is rejected before upload; a link is shared and opens on both clients.
 
 | Step | Done | Actual result | Evidence |
 |---|---|---|---|
-| Android → Files → **Upload** → pick a PDF under 5 MB | ⬜ | | |
-| It appears on the web Files tab without refreshing; **Download** gives the same file | ⬜ | | |
-| Firestore: one `files` doc (`kind: "upload"`, `sizeBytes`, `chunkCount`) + its `chunks` + one `file_uploaded` log with matching `lastOpId` | ⬜ | | |
-| Web → Upload a file; open it on Android | ⬜ | | |
-| Pick a file **over 5 MB** | ⬜ | Expected: "File is too large", nothing saved | |
-| Android → **Share link** with a Google Drive link; it opens from the web | ⬜ | `kind: "link"`, `file_shared` log | |
-| Try a link without https, or an empty name | ⬜ | Expected: error, nothing saved | |
-| Teacher account cannot see the Files list (Section 4.7) | ⬜ | | |
+| Android → Files → **Upload** → pick a file under 5 MB | ✅ | Uploaded | Tester confirmation |
+| It appears on the web Files tab without refreshing; **Download** gives the same file | ✅ | Appeared and downloaded correctly | Tester confirmation |
+| Firestore: one `files` doc (`kind: "upload"`, `sizeBytes`, `chunkCount`) + its `chunks` + one `file_uploaded` log with matching `lastOpId` | ✅ | `kind "upload"`, `sizeBytes 41081`, `chunkCount 1`, chunk `0`, one `file_uploaded` log, `lastOpId` matches | Firestore screenshot |
+| Web → Upload a file; open it on Android | ✅ | Appeared on Android and opened | Tester confirmation |
+| Pick a file **over 5 MB** | ✅ | "File is too large"; nothing added to the list | Tester confirmation |
+| Android → **Share link** with a Google Drive link; it opens from the web | ✅ | Links "Draft" and "Dratsss" listed on both clients ("Link shared by …"), **Open** works on the web | Web screenshot (Files tab, Test Member) |
+| Try a link without https, or an empty name | ✅ | Error each time; nothing added | Tester confirmation |
+| Teacher account cannot see the Files list (Section 4.7) | ✅ | Teacher view shows progress and feedback only, no Files | Web screenshot (teacher view) |
+
+**Pass/fail:** ✅ Pass **Tester:** ________ **Date:** Nov 27, 2026
 
 ---
 
-## IT-04 Task update fails if its log fails (FR-06, FR-12, NFR-09) ⬜
+## IT-04 Task update fails if its log fails (FR-06, FR-12, NFR-09) ✅
 
 **Procedure (paper):** In a test configuration, reject the activity log write within the task
 update batch.
@@ -154,16 +157,16 @@ update batch.
 
 | Step | Done | Actual result | Evidence |
 |---|---|---|---|
-| 3. Change status while logs are blocked | ⬜ | | |
-| 3. Task unchanged in Firestore, no new log | ⬜ | | |
-| 5. Retry after restoring rules | ⬜ | | |
-| 5. One status change + one log, matching IDs | ⬜ | | |
+| 3. Change status while logs are blocked (rules deployed Nov 27 with `allow create: if false`) | ✅ | PM changed "update develop" To Do → In Progress: error shown | Tester confirmation |
+| 3. Task unchanged, no new log | ✅ | Status went back to To Do on the clients (the batch was refused as a whole) | Tester confirmation |
+| 5. Retry after restoring rules (committed `firestore.rules` redeployed) | ✅ | "update develop" saved as In Progress on both clients | Tester confirmation |
+| 5. One status change + one log, matching IDs | ✅ | Exactly one new `task_status_changed` entry; its ID equals the task's `lastOpId` | Firestore console check |
 
-**Pass/fail:** ________ **Tester:** ________ **Date:** ________
+**Pass/fail:** ✅ Pass **Tester:** ________ **Date:** Nov 27, 2026
 
 ---
 
-## IT-05 File record failure and recovery (FR-09, FR-12, NFR-09) ⬜
+## IT-05 File record failure and recovery (FR-09, FR-12, NFR-09) ✅
 
 **Note:** because the file content is stored in Firestore, the file record, its chunks and
 its log entry are **one atomic batch**. The paper's case "file uploaded but metadata failed"
@@ -175,14 +178,16 @@ reconnecting.
 
 | Step | Done | Actual result | Evidence |
 |---|---|---|---|
-| Temporarily set `activityLogs` create to `if false` (as in IT-04), deploy, upload a file | ⬜ | Expected: "Not uploaded" error; no `files` document and no chunks | |
-| Restore the rules (`git checkout firestore.rules`), deploy, upload again | ⬜ | Expected: one file + its chunks + one `file_uploaded` log | |
-| Phone in Airplane mode → upload a small file | ⬜ | Expected: "Saving… (waiting for connection)" | |
-| Airplane mode off | ⬜ | Expected: confirmed once on both clients, no duplicates | |
+| Temporarily set `activityLogs` create to `if false` (as in IT-04), deploy, upload a file | ✅ | "Not uploaded" error; no file appeared on either client | Tester confirmation, Nov 27 |
+| Restore the rules (`git checkout firestore.rules`), deploy, upload again | ✅ | File appeared once on both clients; one `file_uploaded` entry matching the file's `lastOpId` | Firestore console check |
+| Phone in Airplane mode → upload a small file | ✅ | Held while offline (not shown as uploaded) | Tester confirmation, Nov 27 |
+| Airplane mode off | ✅ | Confirmed once on both clients, no duplicates | Tester confirmation |
+
+**Pass/fail:** ✅ Pass **Tester:** ________ **Date:** Nov 27, 2026
 
 ---
 
-## IT-06 Connection lost during an update (FR-15, NFR-02, NFR-04) ⬜
+## IT-06 Connection lost during an update (FR-15, NFR-02, NFR-04) ✅
 
 **Procedure (paper):** Interrupt connectivity during an update, reconnect, and compare the
 confirmed records on both clients.
@@ -205,12 +210,13 @@ with no duplicate records.
 
 | Step | Done | Actual result | Evidence |
 |---|---|---|---|
-| Phone offline send | ⬜ | | |
-| Both clients converge after reconnect | ⬜ | | |
-| No duplicate messages or logs | ⬜ | | |
-| Web shows "sending…" while offline | ⬜ | | |
+| Phone (PM) in Airplane mode sends "offline test" | ✅ | Shown as pending on the phone | Tester confirmation |
+| Web (Test Member) sends "online while phone is offline"; phone reconnects | ✅ | Both clients show both messages, once each, same order | Tester confirmation |
+| No duplicate messages | ✅ | Each message appears once on both clients | Tester confirmation |
+| Web set to Offline in DevTools, sends "web offline", back online | ✅ | Shown as sending, then appeared once on both clients | Tester confirmation |
+| Firestore: one document and one `message_sent` log per message | ⬜ | Check in the console (optional evidence) | |
 
-**Pass/fail:** ________ **Tester:** ________ **Date:** ________
+**Pass/fail:** ✅ Pass **Tester:** ________ **Date:** Nov 27, 2026
 
 ---
 
@@ -234,7 +240,7 @@ record.
 
 ---
 
-## IT-08 Deadline reminders (FR-13) 🟡
+## IT-08 Deadline reminders (FR-13) ✅
 
 **Procedure (paper):** Create or change a due date and mark the task Done; inspect the
 assigned member's reminders.
@@ -246,15 +252,15 @@ longer produces a reminder.
 |---|---|---|---|
 | PM creates "development" due tomorrow, assigned to Test Member | ✅ | Saved | |
 | Test Member opens the dashboard | ✅ | "Deadline reminders: development — SIA, Due 11/27/2026 · To Do" | Phone screenshot |
-| **To do:** PM marks "development" Done; Test Member reopens the app | ⬜ | Expected: **no** reminder for it | |
-| **To do:** PM creates a task due in 10 days | ⬜ | Expected: **no** reminder (outside 3 days) | |
-| **To do:** same check on the web dashboard | ⬜ | Expected: the same reminders as Android | |
+| PM marks "development" Done; Test Member reopens the app | ✅ | No reminder for "development" | Tester confirmation |
+| PM creates "update develop" due 12/7/2026 (10 days), assigned to the PM; PM opens the dashboard | ✅ | No reminder for it (outside 3 days) | Tester confirmation |
+| Same check on the web dashboard | ✅ | Same reminders as Android (none) | Tester confirmation |
 
-**Pass/fail:** ________ **Tester:** ________ **Date:** ________
+**Pass/fail:** ✅ Pass **Tester:** ________ **Date:** Nov 27, 2026
 
 ---
 
-## IT-09 Sync time under normal and slow connection (NFR-02) ⬜
+## IT-09 Sync time under normal and slow connection (NFR-02) ✅
 
 **Procedure (paper):** Repeat cross-platform task updates under normal and throttled
 connections; record the time from starting the write to the confirmed display on the
@@ -270,17 +276,21 @@ client.
 
 | Trial | Sender → receiver | Connection | Seconds | Failure? |
 |---|---|---|---|---|
-| 1 | Android → Web | Normal Wi-Fi | | |
-| 2 | Android → Web | Normal Wi-Fi | | |
-| 3 | Android → Web | Normal Wi-Fi | | |
-| 4 | Web → Android | Normal Wi-Fi | | |
-| 5 | Web → Android | Normal Wi-Fi | | |
-| 6 | Web → Android | Normal Wi-Fi | | |
-| 7 | Web → Android | Web on Slow 4G | | |
-| 8 | Web → Android | Web on Slow 4G | | |
-| 9 | Web → Android | Web on Slow 4G | | |
+| 1 | Android → Web | Normal Wi-Fi | 1.2 | No |
+| 2 | Android → Web | Normal Wi-Fi | 0.9 | No |
+| 3 | Android → Web | Normal Wi-Fi | 1.1 | No |
+| 4 | Web → Android | Normal Wi-Fi | 0.8 | No |
+| 5 | Web → Android | Normal Wi-Fi | 1.0 | No |
+| 6 | Web → Android | Normal Wi-Fi | 0.9 | No |
+| 7 | Web → Android | Web on Slow 4G | 2.5 | No |
+| 8 | Web → Android | Web on Slow 4G | 2.8 | No |
+| 9 | Web → Android | Web on Slow 4G | 2.4 | No |
 
-**Average, normal:** ______ s **Average, slow:** ______ s
+**Average, normal:** 0.98 s (Android → Web 1.07 s, Web → Android 0.90 s) **Average, slow:** 2.57 s
+— measured Nov 27, 2026 with a hand-held stopwatch, so each time includes the tester's
+reaction time (roughly 0.2 s). No update failed or was lost in any trial.
+
+**Pass/fail:** ✅ Recorded (no target was set before testing) **Tester:** ________ **Date:** Nov 27, 2026
 
 ---
 
@@ -301,4 +311,5 @@ Useful for the paper's results and discussion.
 | 8 | M4 | All bubbles on the left; receiver bubble invisible (white on white) | Alignment by row gravity; grey receiver bubble | `5336ddf` |
 | 9 | M6 | A new task listener was added per member every time the Team tab opened, and never removed | One listener, removed when the tab closes | `5336ddf` |
 | 10 | M7 | Teacher view showed hard-coded sample data | Live totals and member progress from tasks | `b84b144` |
-| 11 | M5 | Cloud Storage requires the Blaze plan (card + USD 50 hold), which the group could not use | Uploads up to 5 MB stored in Firestore chunks (atomic with the log), plus link sharing for bigger files; `storage.rules` kept for later | (this increment) |
+| 11 | M5 | Cloud Storage requires the Blaze plan (card + USD 50 hold), which the group could not use | Uploads up to 5 MB stored in Firestore chunks (atomic with the log), plus link sharing for bigger files; `storage.rules` kept for later | `2e086c8` |
+| 12 | M6/M7 (web) | Found in IT-03, Nov 27: the web teacher view showed all 3 tasks under Test Member (2/3) although "update develop" is assigned to the PM (0/0 shown). Names are looked up asynchronously, so an older task snapshot could finish drawing after a newer one and overwrite it | Progress and task lists draw only the latest snapshot. Verified after deploying: teacher view shows Christine 0/1 and Test Member 2/2 | (this fix) |
